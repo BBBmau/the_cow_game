@@ -31,14 +31,12 @@
     <div id="coordinates"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script>
+    <script type="module">
+        import { createCow, updateCowMovement } from './cow.js';
         
         // Set up scene, camera, and renderer
         const scene = new THREE.Scene();
-        const plane = new THREE.Plane( new THREE.Vector3( 1, 1, 0.2 ), 3 );
-        const helper = new THREE.PlaneHelper( plane, 1, 0xffff00 );
-        scene.add( helper );
-        scene.background = new THREE.Color(0x87CEEB); // Sky blue background
+        scene.background = new THREE.Color(0x87CEEB);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -65,10 +63,8 @@
         };
 
         // Create player character
-        const playerGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-        const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const player = new THREE.Mesh(playerGeometry, playerMaterial);
-        player.position.y = 0.5; // Half the height of the sphere
+        const player = createCow();
+        player.position.y = 0.5;
         player.castShadow = true;
         scene.add(player);
 
@@ -80,7 +76,7 @@
         controls.minDistance = 5;
         controls.maxDistance = 50;
         controls.maxPolarAngle = Math.PI / 2;
-        controls.enabled = false; // Disable orbit controls for first-person movement
+        controls.enabled = false;
 
         // Add ambient light
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -112,7 +108,7 @@
         debugGround.rotation.x = -Math.PI / 2;
         debugScene.add(debugGround);
 
-        // Add debug player indicator
+        // Update debug player indicator
         const debugPlayer = new THREE.Mesh(
             new THREE.CircleGeometry(0.5, 32),
             new THREE.MeshBasicMaterial({ color: 0xff0000 })
@@ -170,12 +166,15 @@
         for (let i = 0; i < 10; i++) {
             const x = Math.random() * 40 - 20;
             const z = Math.random() * 40 - 20;
-            const tree = createTree(x, z);
+            createTree(x, z);
         }
 
         // Position camera
         camera.position.set(0, 2, 5);
         camera.lookAt(player.position);
+
+        // Add camera rotation angle
+        let cameraAngle = 0;
 
         // Keyboard event listeners
         document.addEventListener('keydown', (event) => {
@@ -196,12 +195,12 @@
                 const movementX = event.movementX || 0;
                 const movementY = event.movementY || 0;
                 
-                player.rotation.y -= movementX * 0.002;
-                camera.rotation.y -= movementX * 0.002;
+                // Update camera angle for orbiting
+                cameraAngle -= movementX * 0.002;
                 
                 // Update camera height based on mouse Y movement
                 const currentHeight = camera.position.y;
-                const newHeight = currentHeight + movementY * 0.01; // Adjust multiplier for sensitivity
+                const newHeight = currentHeight + movementY * 0.01;
                 
                 // Limit the height range
                 if (newHeight > 1 && newHeight < 10) {
@@ -219,40 +218,20 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Handle movement but why?
-            if (keys.w) {
-                player.position.x += Math.sin(player.rotation.y) * moveSpeed;
-                player.position.z += Math.cos(player.rotation.y) * moveSpeed;
-            }
-            if (keys.s) {
-                player.position.x -= Math.sin(player.rotation.y) * moveSpeed;
-                player.position.z -= Math.cos(player.rotation.y) * moveSpeed;
-            }
-            if (keys.a) {
-                player.position.x += Math.cos(player.rotation.y) * moveSpeed;
-                player.position.z -= Math.sin(player.rotation.y) * moveSpeed;
-            }
-            if (keys.d) {
-                player.position.x -= Math.cos(player.rotation.y) * moveSpeed;
-                player.position.z += Math.sin(player.rotation.y) * moveSpeed;
-            }
+            // Update cow movement
+            updateCowMovement(player, keys, moveSpeed, camera);
 
-            // Keep player within bounds
-            player.position.x = Math.max(-24, Math.min(24, player.position.x));
-            player.position.z = Math.max(-24, Math.min(24, player.position.z));
-
-            // Update camera position to follow player
-            const cameraDistance = 5; // Distance behind player
-            const cameraHeight = 3;   // Height above player
+            // Update camera position to orbit around player
+            const cameraDistance = 5;
             
-            // Calculate camera position based on player's position and rotation
-            camera.position.x = player.position.x - Math.sin(player.rotation.y) * cameraDistance;
-            camera.position.z = player.position.z - Math.cos(player.rotation.y) * cameraDistance;
+            // Calculate camera position based on orbit angle
+            camera.position.x = player.position.x + Math.sin(cameraAngle) * cameraDistance;
+            camera.position.z = player.position.z + Math.cos(cameraAngle) * cameraDistance;
             
             // Look at player with offset for camera tilt
             const lookAtPoint = new THREE.Vector3(
                 player.position.x,
-                player.position.y + 1, // Look slightly above player
+                player.position.y + 1,
                 player.position.z
             );
             camera.lookAt(lookAtPoint);
