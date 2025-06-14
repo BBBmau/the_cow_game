@@ -78,20 +78,22 @@ wss.on('connection', (ws) => {
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
-            console.log('Received message:', data); // Debug log
+            console.log('Received message:', data);
 
             switch (data.type) {
                 case 'set_username':
                     // Update username
                     const client = clients.get(clientId);
                     if (client) {
+                        const oldUsername = client.username;
                         client.username = data.username;
-                        console.log(`Username updated for ${clientId}: ${data.username}`); // Debug log
+                        console.log(`Username updated for ${clientId}: ${data.username}`);
                         
                         // Broadcast username update to all clients
                         broadcastToAll({
                             type: 'username_update',
                             id: clientId,
+                            oldUsername: oldUsername,
                             username: data.username
                         });
                     }
@@ -114,6 +116,19 @@ wss.on('connection', (ws) => {
                         });
                     }
                     break;
+
+                case 'chat_message':
+                    // Handle chat messages
+                    const chatClient = clients.get(clientId);
+                    if (chatClient) {
+                        // Broadcast chat message to all clients
+                        broadcastToAll({
+                            type: 'chat_message',
+                            username: chatClient.username,
+                            text: data.text
+                        });
+                    }
+                    break;
             }
         } catch (error) {
             console.error('Error processing message:', error);
@@ -121,11 +136,16 @@ wss.on('connection', (ws) => {
     });
 
     ws.on('close', () => {
+        // Get username before removing client
+        const leavingClient = clients.get(clientId);
+        const leavingUsername = leavingClient ? leavingClient.username : 'Anonymous';
+        
         // Remove client and notify others
         clients.delete(clientId);
         broadcastToAll({
             type: 'player_left',
-            id: clientId
+            id: clientId,
+            username: leavingUsername
         });
     });
 });

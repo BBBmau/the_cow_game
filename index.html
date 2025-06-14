@@ -34,6 +34,47 @@
             padding: 10px;
             border: 2px solid white;
         }
+        #chatContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 300px;
+            height: 400px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid white;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+        }
+        #chatMessages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            color: white;
+            font-family: monospace;
+        }
+        #chatInput {
+            padding: 10px;
+            border: none;
+            border-top: 2px solid white;
+            background: rgba(255, 255, 255, 0.9);
+            font-family: monospace;
+        }
+        #chatInput:focus {
+            outline: none;
+        }
+        .chat-message {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+        .chat-username {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .chat-system {
+            color: #ff9800;
+            font-style: italic;
+        }
         #loginScreen {
             position: fixed;
             top: 0;
@@ -92,6 +133,10 @@
     <div id="debugView"></div>
     <div id="coordinates"></div>
     <div id="players"></div>
+    <div id="chatContainer">
+        <div id="chatMessages"></div>
+        <input type="text" id="chatInput" placeholder="Type a message...">
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script type="module">
@@ -99,11 +144,83 @@
         
         let username = '';
         let gameStarted = false;
+        let isChatActive = false;
         
         // Handle login form
         const loginScreen = document.getElementById('loginScreen');
         const usernameInput = document.getElementById('usernameInput');
         const startButton = document.getElementById('startButton');
+        const chatInput = document.getElementById('chatInput');
+        const chatMessages = document.getElementById('chatMessages');
+
+        function addChatMessage(message, type = 'user') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            
+            if (type === 'system') {
+                messageDiv.innerHTML = `<span class="chat-system">${message}</span>`;
+            } else {
+                messageDiv.innerHTML = `<span class="chat-username">${message.username}:</span> ${message.text}`;
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Handle chat activation/deactivation
+        function handleChatKeydown(e) {
+            if (!gameStarted) return; // Don't handle chat keys during login
+            
+            if (e.key.toLowerCase() === 't' && !isChatActive) {
+                e.preventDefault(); // Prevent 't' from being typed in chat
+                isChatActive = true;
+                chatInput.focus();
+                chatInput.style.background = 'rgba(255, 255, 255, 1)';
+            } else if (e.key === 'Escape' && isChatActive) {
+                isChatActive = false;
+                chatInput.blur();
+                chatInput.style.background = 'rgba(255, 255, 255, 0.9)';
+            }
+        }
+
+        // Prevent game controls when chat is active
+        function handleGameKeydown(e) {
+            if (!gameStarted) return; // Don't handle game keys during login
+            
+            if (isChatActive && e.key.toLowerCase() !== 'escape') {
+                e.stopPropagation();
+            }
+        }
+
+        function handleChatKeypress(e) {
+            if (!gameStarted) return; // Don't handle chat input during login
+            
+            if (e.key === 'Enter' && chatInput.value.trim()) {
+                e.preventDefault();
+                const message = chatInput.value.trim();
+                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({
+                        type: 'chat_message',
+                        text: message
+                    }));
+                }
+                chatInput.value = '';
+                isChatActive = false;
+                chatInput.blur();
+                chatInput.style.background = 'rgba(255, 255, 255, 0.9)';
+            }
+        }
+
+        function handleChatBlur() {
+            isChatActive = false;
+            chatInput.style.background = 'rgba(255, 255, 255, 0.9)';
+        }
+
+        // Add event listeners for chat
+        document.addEventListener('keydown', handleChatKeydown);
+        document.addEventListener('keydown', handleGameKeydown);
+        chatInput.addEventListener('keypress', handleChatKeypress);
+        chatInput.addEventListener('blur', handleChatBlur);
 
         startButton.addEventListener('click', () => {
             username = usernameInput.value.trim();
@@ -124,7 +241,7 @@
 
         function initGame() {
             // WebSocket connection
-            const ws = new WebSocket('ws://localhost:8080');
+            window.ws = new WebSocket('ws://localhost:8080');
             let clientId = null;
             const otherPlayers = new Map();
 
@@ -310,7 +427,7 @@
             });
 
             // WebSocket event handlers
-            ws.onopen = () => {
+            window.ws.onopen = () => {
                 console.log('Connected to server');
                 // Send username to server
                 const usernameMessage = {
@@ -318,10 +435,10 @@
                     username: username
                 };
                 console.log('Sending username:', usernameMessage);
-                ws.send(JSON.stringify(usernameMessage));
+                window.ws.send(JSON.stringify(usernameMessage));
             };
 
-            ws.onmessage = (event) => {
+            window.ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 console.log('Received message:', data);
                 
@@ -336,11 +453,13 @@
                                 createOtherPlayer(playerData);
                             }
                         });
+                        addChatMessage('Welcome to the game!', 'system');
                         break;
 
                     case 'player_joined':
                         console.log('Player joined:', data);
                         createOtherPlayer(data);
+                        addChatMessage(`${data.username} joined the game`, 'system');
                         break;
 
                     case 'position_update':
@@ -350,16 +469,22 @@
                     case 'player_left':
                         console.log('Player left:', data);
                         removeOtherPlayer(data.id);
+                        addChatMessage(`${data.username} left the game`, 'system');
                         break;
 
                     case 'username_update':
                         console.log('Username update:', data);
                         updatePlayerUsername(data);
+                        addChatMessage(`${data.oldUsername} is now known as ${data.username}`, 'system');
+                        break;
+
+                    case 'chat_message':
+                        addChatMessage(data);
                         break;
                 }
             };
 
-            ws.onclose = () => {
+            window.ws.onclose = () => {
                 console.log('Disconnected from server');
             };
 
@@ -423,8 +548,8 @@
                 updateCowMovement(player, keys, moveSpeed, camera);
 
                 // Send position update to server
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({
+                if (window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({
                         type: 'update_position',
                         position: {
                             x: player.position.x,
