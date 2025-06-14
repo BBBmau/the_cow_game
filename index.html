@@ -131,6 +131,10 @@
             Exit Moo: Escape</p>
             <input type="text" id="usernameInput" placeholder="Username" maxlength="20">
             <br>
+            <div style="margin: 10px 0;">
+                <label for="cowColor">Choose your cow's color:</label>
+                <input type="color" id="cowColor" value="#ffffff" style="margin-left: 10px;">
+            </div>
             <button id="startButton">Start Playing</button>
         </div>
     </div>
@@ -147,12 +151,14 @@
         import { createCow, updateCowMovement } from './cow.js';
         
         let username = '';
+        let cowColor = '#ffffff';
         let gameStarted = false;
         let isChatActive = false;
         
         // Handle login form
         const loginScreen = document.getElementById('loginScreen');
         const usernameInput = document.getElementById('usernameInput');
+        const cowColorInput = document.getElementById('cowColor');
         const startButton = document.getElementById('startButton');
         const chatInput = document.getElementById('chatInput');
         const chatMessages = document.getElementById('chatMessages');
@@ -225,6 +231,11 @@
         document.addEventListener('keydown', handleGameKeydown);
         chatInput.addEventListener('keypress', handleChatKeypress);
         chatInput.addEventListener('blur', handleChatBlur);
+
+        // Update cow color when changed
+        cowColorInput.addEventListener('input', (e) => {
+            cowColor = e.target.value;
+        });
 
         startButton.addEventListener('click', () => {
             username = usernameInput.value.trim();
@@ -326,9 +337,9 @@
                 nameLabel.position.y = 3;  // Raised position for better visibility
             }
 
-            // Create player character
-            const player = createCow();
-            player.position.y = 0;  // Set initial position to ground level
+            // Create player character with custom color
+            const player = createCow(cowColor);
+            player.position.y = 0;
             player.castShadow = true;
             scene.add(player);
 
@@ -486,10 +497,11 @@
             // WebSocket event handlers
             window.ws.onopen = () => {
                 console.log('Connected to server');
-                // Send username to server
+                // Send username and color to server
                 const usernameMessage = {
                     type: 'set_username',
-                    username: username
+                    username: username,
+                    color: cowColor
                 };
                 console.log('Sending username:', usernameMessage);
                 window.ws.send(JSON.stringify(usernameMessage));
@@ -519,6 +531,35 @@
                         addChatMessage(`${data.username} joined the game`, 'system');
                         break;
 
+                    case 'color_update':
+                        console.log('Color update:', data);
+                        data.players.forEach(playerData => {
+                            const existingPlayer = otherPlayers.get(playerData.id);
+                            if (existingPlayer) {
+                                // Update the cow's color
+                                const oldCow = existingPlayer.cow;
+                                const newCow = createCow(playerData.color);
+                                newCow.position.copy(oldCow.position);
+                                newCow.rotation.copy(oldCow.rotation);
+                                newCow.castShadow = true;
+                                
+                                // Copy the name label
+                                const nameLabel = oldCow.children.find(child => child instanceof THREE.Sprite);
+                                if (nameLabel) {
+                                    newCow.add(nameLabel.clone());
+                                }
+                                
+                                // Replace the old cow with the new one
+                                scene.remove(oldCow);
+                                scene.add(newCow);
+                                
+                                // Update the player data
+                                existingPlayer.cow = newCow;
+                                existingPlayer.color = playerData.color;
+                            }
+                        });
+                        break;
+
                     case 'position_update':
                         updateOtherPlayer(data);
                         break;
@@ -546,7 +587,7 @@
             };
 
             function createOtherPlayer(data) {
-                const otherPlayer = createCow();
+                const otherPlayer = createCow(data.color || '#ffffff');
                 otherPlayer.position.set(data.position.x, data.position.y, data.position.z);
                 otherPlayer.rotation.y = data.rotation;
                 otherPlayer.castShadow = true;
@@ -557,7 +598,8 @@
 
                 otherPlayers.set(data.id, {
                     cow: otherPlayer,
-                    username: data.username || 'Anonymous'
+                    username: data.username || 'Anonymous',
+                    color: data.color || '#ffffff'
                 });
                 updatePlayersList();
             }
@@ -668,6 +710,45 @@
 
             animate();
         }
+
+        // Handle login form submission
+        const loginForm = document.getElementById('loginForm');
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = usernameInput.value.trim() || 'Anonymous';
+            const color = cowColorInput.value;
+            console.log('Setting username:', username, 'with color:', color);
+            
+            // Send username and color to server
+            window.ws.send(JSON.stringify({
+                type: 'set_username',
+                username: username,
+                color: color
+            }));
+            
+            // Update local username and color
+            username = username;
+            cowColor = color;
+            
+            // Create player character with selected color
+            if (player) {
+                scene.remove(player);
+            }
+            player = createCow(color);
+            player.position.set(0, 0.5, 0);
+            player.castShadow = true;
+            scene.add(player);
+            
+            // Create name label
+            const nameLabel = createNameLabel(username);
+            player.add(nameLabel);
+            
+            // Hide login screen
+            loginScreen.style.display = 'none';
+            
+            // Start game loop
+            animate();
+        });
     </script>
 </body>
 </html> 

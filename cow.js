@@ -1,9 +1,17 @@
 // Cow model and movement functionality
-export function createCow() {
+export function createCow(color = '#ffffff') {
     const cowGroup = new THREE.Group();
 
+    // Convert hex color to RGB
+    const hexColor = new THREE.Color(color);
+    const rgbColor = {
+        r: hexColor.r,
+        g: hexColor.g,
+        b: hexColor.b
+    };
+
     // Materials
-    const white = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const white = new THREE.MeshStandardMaterial({ color: color });
     const black = new THREE.MeshStandardMaterial({ color: 0x000000 });
     const pink = new THREE.MeshStandardMaterial({ color: 0xffa3b1 });
     const brown = new THREE.MeshStandardMaterial({ color: 0x5a3a1a });

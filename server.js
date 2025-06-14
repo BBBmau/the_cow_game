@@ -51,7 +51,8 @@ wss.on('connection', (ws) => {
         ws, 
         position: { x: 0, y: 0.5, z: 0 }, 
         rotation: 0,
-        username: 'Anonymous' // Default username
+        username: 'Anonymous', // Default username
+        color: '#ffffff' // Default color
     });
 
     // Send the client their ID
@@ -62,7 +63,8 @@ wss.on('connection', (ws) => {
             id,
             username: data.username,
             position: data.position,
-            rotation: data.rotation
+            rotation: data.rotation,
+            color: data.color
         }))
     }));
 
@@ -72,8 +74,24 @@ wss.on('connection', (ws) => {
         id: clientId,
         username: clients.get(clientId).username,
         position: clients.get(clientId).position,
-        rotation: clients.get(clientId).rotation
+        rotation: clients.get(clientId).rotation,
+        color: clients.get(clientId).color
     });
+
+    // Send existing players' colors to the new player
+    const existingPlayers = Array.from(clients.entries())
+        .filter(([id]) => id !== clientId)
+        .map(([id, data]) => ({
+            id,
+            color: data.color
+        }));
+
+    if (existingPlayers.length > 0) {
+        ws.send(JSON.stringify({
+            type: 'color_update',
+            players: existingPlayers
+        }));
+    }
 
     ws.on('message', (message) => {
         try {
@@ -82,19 +100,34 @@ wss.on('connection', (ws) => {
 
             switch (data.type) {
                 case 'set_username':
-                    // Update username
+                    // Update username and color
                     const client = clients.get(clientId);
                     if (client) {
                         const oldUsername = client.username;
                         client.username = data.username;
-                        console.log(`Username updated for ${clientId}: ${data.username}`);
+                        // Always update color when provided
+                        if (data.color) {
+                            client.color = data.color;
+                            console.log(`Color updated for ${clientId}: ${data.color}`);
+                        }
+                        console.log(`Username updated for ${clientId}: ${data.username}, color: ${client.color}`);
                         
-                        // Broadcast username update to all clients
+                        // Broadcast username and color update to all clients
                         broadcastToAll({
                             type: 'username_update',
                             id: clientId,
                             oldUsername: oldUsername,
-                            username: data.username
+                            username: data.username,
+                            color: client.color
+                        });
+
+                        // Also send a color update to ensure all clients have the correct color
+                        broadcastToAll({
+                            type: 'color_update',
+                            players: [{
+                                id: clientId,
+                                color: client.color
+                            }]
                         });
                     }
                     break;
@@ -112,7 +145,8 @@ wss.on('connection', (ws) => {
                             id: clientId,
                             username: clientPos.username,
                             position: data.position,
-                            rotation: data.rotation
+                            rotation: data.rotation,
+                            color: clientPos.color
                         });
                     }
                     break;
