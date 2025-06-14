@@ -328,7 +328,7 @@
 
             // Create player character
             const player = createCow();
-            player.position.y = 0.5;
+            player.position.y = 0;  // Set initial position to ground level
             player.castShadow = true;
             scene.add(player);
 
@@ -364,6 +364,7 @@
             });
             const ground = new THREE.Mesh(groundGeometry, groundMaterial);
             ground.rotation.x = -Math.PI / 2;
+            ground.position.y = 0;  // Set ground to y=0
             ground.receiveShadow = true;
             scene.add(ground);
 
@@ -373,6 +374,7 @@
                 new THREE.MeshBasicMaterial({ color: 0x7CFC00, wireframe: true })
             );
             debugGround.rotation.x = -Math.PI / 2;
+            debugGround.position.y = 0;  // Match the ground position
             debugScene.add(debugGround);
 
             // Update debug player indicator
@@ -404,7 +406,7 @@
                 const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 1, 8);
                 const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
                 const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-                trunk.position.y = 0.5;
+                trunk.position.y = 0.5;  // Half the trunk height
                 trunk.castShadow = true;
                 treeGroup.add(trunk);
 
@@ -412,11 +414,11 @@
                 const topGeometry = new THREE.ConeGeometry(1, 2, 8);
                 const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
                 const top = new THREE.Mesh(topGeometry, topMaterial);
-                top.position.y = 2;
+                top.position.y = 2;  // Position above trunk
                 top.castShadow = true;
                 treeGroup.add(top);
 
-                treeGroup.position.set(x, 0, z);
+                treeGroup.position.set(x, 0, z);  // Set tree base at ground level
                 scene.add(treeGroup);
 
                 // Add debug tree
@@ -425,7 +427,7 @@
                     new THREE.MeshBasicMaterial({ color: 0x228B22 })
                 );
                 debugTree.rotation.x = -Math.PI / 2;
-                debugTree.position.set(x, 0.1, z);
+                debugTree.position.set(x, 0.1, z);  // Slightly above ground for visibility
                 debugTrees.add(debugTree);
             }
 

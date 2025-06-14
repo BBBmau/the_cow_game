@@ -127,7 +127,7 @@ export function updateCowMovement(player, keys, moveSpeed, camera) {
     // Apply gravity
     const gravity = 0.015;
     const jumpForce = 0.15;
-    const groundLevel = 0.5; // Height of the cow's legs
+    const groundLevel = 0; // Height of the cow's legs (adjusted to match ground)
 
     // Handle jumping
     if (keys[' '] && player.isGrounded) { // Space bar
