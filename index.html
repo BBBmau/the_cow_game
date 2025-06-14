@@ -34,9 +34,61 @@
             padding: 10px;
             border: 2px solid white;
         }
+        #loginScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        #loginForm {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+        #usernameInput {
+            padding: 10px;
+            margin: 10px 0;
+            width: 200px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #startButton {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        #startButton:hover {
+            background: #45a049;
+        }
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
+    <div id="loginScreen">
+        <div id="loginForm">
+            <h2>Welcome to The Cow Game!</h2>
+            <p>Enter the name of your cow to start playing:</p>
+            <input type="text" id="usernameInput" placeholder="Username" maxlength="20">
+            <br>
+            <button id="startButton">Start Playing</button>
+        </div>
+    </div>
     <div id="debugView"></div>
     <div id="coordinates"></div>
     <div id="players"></div>
@@ -45,330 +97,389 @@
     <script type="module">
         import { createCow, updateCowMovement } from './cow.js';
         
-        // WebSocket connection
-        const ws = new WebSocket('ws://localhost:8080');
-        let clientId = null;
-        const otherPlayers = new Map();
+        let username = '';
+        let gameStarted = false;
+        
+        // Handle login form
+        const loginScreen = document.getElementById('loginScreen');
+        const usernameInput = document.getElementById('usernameInput');
+        const startButton = document.getElementById('startButton');
 
-        // Set up scene, camera, and renderer
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB);
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        document.body.appendChild(renderer.domElement);
-
-        // Set up debug view
-        const debugScene = new THREE.Scene();
-        debugScene.background = new THREE.Color(0x000000);
-        const debugCamera = new THREE.OrthographicCamera(-25, 25, 25, -25, 0.1, 1000);
-        debugCamera.position.set(0, 50, 0);
-        debugCamera.lookAt(0, 0, 0);
-        const debugRenderer = new THREE.WebGLRenderer({ antialias: true });
-        debugRenderer.setSize(200, 200);
-        document.getElementById('debugView').appendChild(debugRenderer.domElement);
-
-        // Player movement variables
-        const moveSpeed = 0.15;
-        const keys = {
-            w: false,
-            a: false,
-            s: false,
-            d: false,
-            ' ': false  // Add spacebar for jumping
-        };
-
-        // Create player character
-        const player = createCow();
-        player.position.y = 0.5;
-        player.castShadow = true;
-        scene.add(player);
-
-        // Add OrbitControls
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.screenSpacePanning = false;
-        controls.minDistance = 5;
-        controls.maxDistance = 50;
-        controls.maxPolarAngle = Math.PI / 2;
-        controls.enabled = false;
-
-        // Add ambient light
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
-
-        // Add directional light (sun)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(5, 5, 5);
-        directionalLight.castShadow = true;
-        scene.add(directionalLight);
-
-        // Create ground
-        const groundGeometry = new THREE.PlaneGeometry(50, 50);
-        const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x7CFC00,
-            roughness: 0.8,
-            metalness: 0.2
+        startButton.addEventListener('click', () => {
+            username = usernameInput.value.trim();
+            if (username) {
+                loginScreen.classList.add('hidden');
+                gameStarted = true;
+                initGame();
+            } else {
+                alert('Please enter a username!');
+            }
         });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
 
-        // Add debug ground
-        const debugGround = new THREE.Mesh(
-            new THREE.PlaneGeometry(50, 50),
-            new THREE.MeshBasicMaterial({ color: 0x7CFC00, wireframe: true })
-        );
-        debugGround.rotation.x = -Math.PI / 2;
-        debugScene.add(debugGround);
+        usernameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                startButton.click();
+            }
+        });
 
-        // Update debug player indicator
-        const debugPlayer = new THREE.Mesh(
-            new THREE.CircleGeometry(0.5, 32),
-            new THREE.MeshBasicMaterial({ color: 0xff0000 })
-        );
-        debugPlayer.rotation.x = -Math.PI / 2;
-        debugScene.add(debugPlayer);
+        function initGame() {
+            // WebSocket connection
+            const ws = new WebSocket('ws://localhost:8080');
+            let clientId = null;
+            const otherPlayers = new Map();
 
-        // Add debug direction indicator
-        const debugDirection = new THREE.Mesh(
-            new THREE.ConeGeometry(0.5, 1, 32),
-            new THREE.MeshBasicMaterial({ color: 0xffff00 })
-        );
-        debugDirection.rotation.x = -Math.PI / 2;
-        debugDirection.position.y = 0.1;
-        debugScene.add(debugDirection);
+            // Set up scene, camera, and renderer
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
 
-        // Add debug trees
-        const debugTrees = new THREE.Group();
-        debugScene.add(debugTrees);
+            // Set up debug view
+            const debugScene = new THREE.Scene();
+            debugScene.background = new THREE.Color(0x000000);
+            const debugCamera = new THREE.OrthographicCamera(-25, 25, 25, -25, 0.1, 1000);
+            debugCamera.position.set(0, 50, 0);
+            debugCamera.lookAt(0, 0, 0);
+            const debugRenderer = new THREE.WebGLRenderer({ antialias: true });
+            debugRenderer.setSize(200, 200);
+            document.getElementById('debugView').appendChild(debugRenderer.domElement);
 
-        // Function to create a tree
-        function createTree(x, z) {
-            const treeGroup = new THREE.Group();
+            // Player movement variables
+            const moveSpeed = 0.15;
+            const keys = {
+                w: false,
+                a: false,
+                s: false,
+                d: false,
+                ' ': false  // Add spacebar for jumping
+            };
 
-            // Tree trunk
-            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 1, 8);
-            const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.y = 0.5;
-            trunk.castShadow = true;
-            treeGroup.add(trunk);
+            // Create player character
+            const player = createCow();
+            player.position.y = 0.5;
+            player.castShadow = true;
+            scene.add(player);
 
-            // Tree top
-            const topGeometry = new THREE.ConeGeometry(1, 2, 8);
-            const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
-            const top = new THREE.Mesh(topGeometry, topMaterial);
-            top.position.y = 2;
-            top.castShadow = true;
-            treeGroup.add(top);
+            // Add OrbitControls
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 5;
+            controls.maxDistance = 50;
+            controls.maxPolarAngle = Math.PI / 2;
+            controls.enabled = false;
 
-            treeGroup.position.set(x, 0, z);
-            scene.add(treeGroup);
+            // Add ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
 
-            // Add debug tree
-            const debugTree = new THREE.Mesh(
-                new THREE.CircleGeometry(0.3, 32),
-                new THREE.MeshBasicMaterial({ color: 0x228B22 })
+            // Add directional light (sun)
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // Create ground
+            const groundGeometry = new THREE.PlaneGeometry(50, 50);
+            const groundMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x7CFC00,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Add debug ground
+            const debugGround = new THREE.Mesh(
+                new THREE.PlaneGeometry(50, 50),
+                new THREE.MeshBasicMaterial({ color: 0x7CFC00, wireframe: true })
             );
-            debugTree.rotation.x = -Math.PI / 2;
-            debugTree.position.set(x, 0.1, z);
-            debugTrees.add(debugTree);
-        }
+            debugGround.rotation.x = -Math.PI / 2;
+            debugScene.add(debugGround);
 
-        // Add some trees
-        for (let i = 0; i < 10; i++) {
-            const x = Math.random() * 40 - 20;
-            const z = Math.random() * 40 - 20;
-            createTree(x, z);
-        }
+            // Update debug player indicator
+            const debugPlayer = new THREE.Mesh(
+                new THREE.CircleGeometry(0.5, 32),
+                new THREE.MeshBasicMaterial({ color: 0xff0000 })
+            );
+            debugPlayer.rotation.x = -Math.PI / 2;
+            debugScene.add(debugPlayer);
 
-        // Position camera
-        camera.position.set(0, 2, 5);
-        camera.lookAt(player.position);
+            // Add debug direction indicator
+            const debugDirection = new THREE.Mesh(
+                new THREE.ConeGeometry(0.5, 1, 32),
+                new THREE.MeshBasicMaterial({ color: 0xffff00 })
+            );
+            debugDirection.rotation.x = -Math.PI / 2;
+            debugDirection.position.y = 0.1;
+            debugScene.add(debugDirection);
 
-        // Add camera rotation angle
-        let cameraAngle = 0;
+            // Add debug trees
+            const debugTrees = new THREE.Group();
+            debugScene.add(debugTrees);
 
-        // Keyboard event listeners
-        document.addEventListener('keydown', (event) => {
-            if (keys.hasOwnProperty(event.key.toLowerCase())) {
-                keys[event.key.toLowerCase()] = true;
+            // Function to create a tree
+            function createTree(x, z) {
+                const treeGroup = new THREE.Group();
+
+                // Tree trunk
+                const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 1, 8);
+                const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+                const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+                trunk.position.y = 0.5;
+                trunk.castShadow = true;
+                treeGroup.add(trunk);
+
+                // Tree top
+                const topGeometry = new THREE.ConeGeometry(1, 2, 8);
+                const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+                const top = new THREE.Mesh(topGeometry, topMaterial);
+                top.position.y = 2;
+                top.castShadow = true;
+                treeGroup.add(top);
+
+                treeGroup.position.set(x, 0, z);
+                scene.add(treeGroup);
+
+                // Add debug tree
+                const debugTree = new THREE.Mesh(
+                    new THREE.CircleGeometry(0.3, 32),
+                    new THREE.MeshBasicMaterial({ color: 0x228B22 })
+                );
+                debugTree.rotation.x = -Math.PI / 2;
+                debugTree.position.set(x, 0.1, z);
+                debugTrees.add(debugTree);
             }
-        });
 
-        document.addEventListener('keyup', (event) => {
-            if (keys.hasOwnProperty(event.key.toLowerCase())) {
-                keys[event.key.toLowerCase()] = false;
+            // Add some trees
+            for (let i = 0; i < 10; i++) {
+                const x = Math.random() * 40 - 20;
+                const z = Math.random() * 40 - 20;
+                createTree(x, z);
             }
-        });
 
-        // Mouse movement for looking around
-        document.addEventListener('mousemove', (event) => {
-            if (document.pointerLockElement === document.body) {
-                const movementX = event.movementX || 0;
-                const movementY = event.movementY || 0;
-                
-                // Update camera angle for orbiting
-                cameraAngle -= movementX * 0.002;
-                
-                // Update camera height based on mouse Y movement
-                const currentHeight = camera.position.y;
-                const newHeight = currentHeight + movementY * 0.01;
-                
-                // Limit the height range
-                if (newHeight > 1 && newHeight < 10) {
-                    camera.position.y = newHeight;
+            // Position camera
+            camera.position.set(0, 2, 5);
+            camera.lookAt(player.position);
+
+            // Add camera rotation angle
+            let cameraAngle = 0;
+
+            // Keyboard event listeners
+            document.addEventListener('keydown', (event) => {
+                if (keys.hasOwnProperty(event.key.toLowerCase())) {
+                    keys[event.key.toLowerCase()] = true;
                 }
-            }
-        });
+            });
 
-        // Click to lock pointer
-        document.addEventListener('click', () => {
-            document.body.requestPointerLock();
-        });
+            document.addEventListener('keyup', (event) => {
+                if (keys.hasOwnProperty(event.key.toLowerCase())) {
+                    keys[event.key.toLowerCase()] = false;
+                }
+            });
 
-        // WebSocket event handlers
-        ws.onopen = () => {
-            console.log('Connected to server');
-        };
+            // Mouse movement for looking around
+            document.addEventListener('mousemove', (event) => {
+                if (document.pointerLockElement === document.body) {
+                    const movementX = event.movementX || 0;
+                    const movementY = event.movementY || 0;
+                    
+                    // Update camera angle for orbiting
+                    cameraAngle -= movementX * 0.002;
+                    
+                    // Update camera height based on mouse Y movement
+                    const currentHeight = camera.position.y;
+                    const newHeight = currentHeight + movementY * 0.01;
+                    
+                    // Limit the height range
+                    if (newHeight > 1 && newHeight < 10) {
+                        camera.position.y = newHeight;
+                    }
+                }
+            });
 
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            
-            switch (data.type) {
-                case 'init':
-                    clientId = data.id;
-                    // Create other players that are already in the game
-                    data.players.forEach(playerData => {
-                        if (playerData.id !== clientId) {
-                            createOtherPlayer(playerData);
-                        }
-                    });
-                    break;
+            // Click to lock pointer
+            document.addEventListener('click', () => {
+                document.body.requestPointerLock();
+            });
 
-                case 'player_joined':
-                    createOtherPlayer(data);
-                    break;
+            // WebSocket event handlers
+            ws.onopen = () => {
+                console.log('Connected to server');
+                // Send username to server
+                const usernameMessage = {
+                    type: 'set_username',
+                    username: username
+                };
+                console.log('Sending username:', usernameMessage);
+                ws.send(JSON.stringify(usernameMessage));
+            };
 
-                case 'position_update':
-                    updateOtherPlayer(data);
-                    break;
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Received message:', data);
+                
+                switch (data.type) {
+                    case 'init':
+                        clientId = data.id;
+                        console.log('Initialized with ID:', clientId);
+                        // Create other players that are already in the game
+                        data.players.forEach(playerData => {
+                            if (playerData.id !== clientId) {
+                                console.log('Creating other player:', playerData);
+                                createOtherPlayer(playerData);
+                            }
+                        });
+                        break;
 
-                case 'player_left':
-                    removeOtherPlayer(data.id);
-                    break;
-            }
-        };
+                    case 'player_joined':
+                        console.log('Player joined:', data);
+                        createOtherPlayer(data);
+                        break;
 
-        ws.onclose = () => {
-            console.log('Disconnected from server');
-        };
+                    case 'position_update':
+                        updateOtherPlayer(data);
+                        break;
 
-        function createOtherPlayer(data) {
-            const otherPlayer = createCow();
-            otherPlayer.position.set(data.position.x, data.position.y, data.position.z);
-            otherPlayer.rotation.y = data.rotation;
-            otherPlayer.castShadow = true;
-            scene.add(otherPlayer);
-            otherPlayers.set(data.id, otherPlayer);
-            updatePlayersList();
-        }
+                    case 'player_left':
+                        console.log('Player left:', data);
+                        removeOtherPlayer(data.id);
+                        break;
 
-        function updateOtherPlayer(data) {
-            const otherPlayer = otherPlayers.get(data.id);
-            if (otherPlayer) {
+                    case 'username_update':
+                        console.log('Username update:', data);
+                        updatePlayerUsername(data);
+                        break;
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('Disconnected from server');
+            };
+
+            function createOtherPlayer(data) {
+                const otherPlayer = createCow();
                 otherPlayer.position.set(data.position.x, data.position.y, data.position.z);
                 otherPlayer.rotation.y = data.rotation;
-            }
-        }
-
-        function removeOtherPlayer(id) {
-            const otherPlayer = otherPlayers.get(id);
-            if (otherPlayer) {
-                scene.remove(otherPlayer);
-                otherPlayers.delete(id);
+                otherPlayer.castShadow = true;
+                scene.add(otherPlayer);
+                otherPlayers.set(data.id, {
+                    cow: otherPlayer,
+                    username: data.username || 'Anonymous'
+                });
                 updatePlayersList();
             }
-        }
 
-        function updatePlayersList() {
-            const playersDiv = document.getElementById('players');
-            playersDiv.innerHTML = `
-                Players Online: ${otherPlayers.size + 1}<br>
-                Your ID: ${clientId}<br>
-                Other Players:<br>
-                ${Array.from(otherPlayers.keys()).join('<br>')}
-            `;
-        }
-
-        // Animation loop
-        function animate() {
-            requestAnimationFrame(animate);
-
-            // Update cow movement
-            updateCowMovement(player, keys, moveSpeed, camera);
-
-            // Send position update to server
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'update_position',
-                    position: {
-                        x: player.position.x,
-                        y: player.position.y,
-                        z: player.position.z
-                    },
-                    rotation: player.rotation.y
-                }));
+            function updateOtherPlayer(data) {
+                const playerData = otherPlayers.get(data.id);
+                if (playerData) {
+                    playerData.cow.position.set(data.position.x, data.position.y, data.position.z);
+                    playerData.cow.rotation.y = data.rotation;
+                    if (data.username) {
+                        playerData.username = data.username;
+                    }
+                    updatePlayersList();
+                }
             }
 
-            // Update camera position to orbit around player
-            const cameraDistance = 5;
-            
-            // Calculate camera position based on orbit angle
-            camera.position.x = player.position.x + Math.sin(cameraAngle) * cameraDistance;
-            camera.position.z = player.position.z + Math.cos(cameraAngle) * cameraDistance;
-            
-            // Look at player with offset for camera tilt
-            const lookAtPoint = new THREE.Vector3(
-                player.position.x,
-                player.position.y + 1,
-                player.position.z
-            );
-            camera.lookAt(lookAtPoint);
+            function updatePlayerUsername(data) {
+                const playerData = otherPlayers.get(data.id);
+                if (playerData) {
+                    playerData.username = data.username;
+                    updatePlayersList();
+                }
+            }
 
-            // Update debug view
-            debugPlayer.position.set(player.position.x, 0.1, player.position.z);
-            debugDirection.position.set(player.position.x, 0.1, player.position.z);
-            debugDirection.rotation.z = -player.rotation.y;
+            function removeOtherPlayer(id) {
+                const playerData = otherPlayers.get(id);
+                if (playerData) {
+                    scene.remove(playerData.cow);
+                    otherPlayers.delete(id);
+                    updatePlayersList();
+                }
+            }
 
-            // Update coordinate display
-            const coordinatesDiv = document.getElementById('coordinates');
-            coordinatesDiv.innerHTML = `
-                Position:<br>
-                X: ${player.position.x.toFixed(2)}<br>
-                Y: ${player.position.y.toFixed(2)}<br>
-                Z: ${player.position.z.toFixed(2)}<br>
-                Rotation: ${(player.rotation.y * (180/Math.PI)).toFixed(2)}°
-            `;
+            function updatePlayersList() {
+                const playersDiv = document.getElementById('players');
+                playersDiv.innerHTML = `
+                    Players Online: ${otherPlayers.size + 1}<br>
+                    Your Username: ${username}<br>
+                    Other Players:<br>
+                    ${Array.from(otherPlayers.values()).map(player => player.username).join('<br>')}
+                `;
+            }
 
-            renderer.render(scene, camera);
-            debugRenderer.render(debugScene, debugCamera);
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+
+                // Update cow movement
+                updateCowMovement(player, keys, moveSpeed, camera);
+
+                // Send position update to server
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'update_position',
+                        position: {
+                            x: player.position.x,
+                            y: player.position.y,
+                            z: player.position.z
+                        },
+                        rotation: player.rotation.y
+                    }));
+                }
+
+                // Update camera position to orbit around player
+                const cameraDistance = 5;
+                
+                // Calculate camera position based on orbit angle
+                camera.position.x = player.position.x + Math.sin(cameraAngle) * cameraDistance;
+                camera.position.z = player.position.z + Math.cos(cameraAngle) * cameraDistance;
+                
+                // Look at player with offset for camera tilt
+                const lookAtPoint = new THREE.Vector3(
+                    player.position.x,
+                    player.position.y + 1,
+                    player.position.z
+                );
+                camera.lookAt(lookAtPoint);
+
+                // Update debug view
+                debugPlayer.position.set(player.position.x, 0.1, player.position.z);
+                debugDirection.position.set(player.position.x, 0.1, player.position.z);
+                debugDirection.rotation.z = -player.rotation.y;
+
+                // Update coordinate display
+                const coordinatesDiv = document.getElementById('coordinates');
+                coordinatesDiv.innerHTML = `
+                    Position:<br>
+                    X: ${player.position.x.toFixed(2)}<br>
+                    Y: ${player.position.y.toFixed(2)}<br>
+                    Z: ${player.position.z.toFixed(2)}<br>
+                    Rotation: ${(player.rotation.y * (180/Math.PI)).toFixed(2)}°
+                `;
+
+                renderer.render(scene, camera);
+                debugRenderer.render(debugScene, debugCamera);
+            }
+
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize, false);
+
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            animate();
         }
-
-        // Handle window resize
-        window.addEventListener('resize', onWindowResize, false);
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        animate();
     </script>
 </body>
 </html> 

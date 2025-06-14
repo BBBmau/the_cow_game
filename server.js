@@ -47,7 +47,12 @@ const clients = new Map();
 wss.on('connection', (ws) => {
     // Generate a unique ID for this client
     const clientId = Math.random().toString(36).substr(2, 9);
-    clients.set(clientId, { ws, position: { x: 0, y: 0.5, z: 0 }, rotation: 0 });
+    clients.set(clientId, { 
+        ws, 
+        position: { x: 0, y: 0.5, z: 0 }, 
+        rotation: 0,
+        username: 'Anonymous' // Default username
+    });
 
     // Send the client their ID
     ws.send(JSON.stringify({
@@ -55,6 +60,7 @@ wss.on('connection', (ws) => {
         id: clientId,
         players: Array.from(clients.entries()).map(([id, data]) => ({
             id,
+            username: data.username,
             position: data.position,
             rotation: data.rotation
         }))
@@ -64,6 +70,7 @@ wss.on('connection', (ws) => {
     broadcastToOthers(clientId, {
         type: 'player_joined',
         id: clientId,
+        username: clients.get(clientId).username,
         position: clients.get(clientId).position,
         rotation: clients.get(clientId).rotation
     });
@@ -71,19 +78,42 @@ wss.on('connection', (ws) => {
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
-            if (data.type === 'update_position') {
-                // Update this client's position
-                const client = clients.get(clientId);
-                client.position = data.position;
-                client.rotation = data.rotation;
+            console.log('Received message:', data); // Debug log
 
-                // Broadcast position update to all other clients
-                broadcastToOthers(clientId, {
-                    type: 'position_update',
-                    id: clientId,
-                    position: data.position,
-                    rotation: data.rotation
-                });
+            switch (data.type) {
+                case 'set_username':
+                    // Update username
+                    const client = clients.get(clientId);
+                    if (client) {
+                        client.username = data.username;
+                        console.log(`Username updated for ${clientId}: ${data.username}`); // Debug log
+                        
+                        // Broadcast username update to all clients
+                        broadcastToAll({
+                            type: 'username_update',
+                            id: clientId,
+                            username: data.username
+                        });
+                    }
+                    break;
+
+                case 'update_position':
+                    // Update this client's position
+                    const clientPos = clients.get(clientId);
+                    if (clientPos) {
+                        clientPos.position = data.position;
+                        clientPos.rotation = data.rotation;
+
+                        // Broadcast position update to all other clients
+                        broadcastToOthers(clientId, {
+                            type: 'position_update',
+                            id: clientId,
+                            username: clientPos.username,
+                            position: data.position,
+                            rotation: data.rotation
+                        });
+                    }
+                    break;
             }
         } catch (error) {
             console.error('Error processing message:', error);
