@@ -274,11 +274,62 @@
                 ' ': false  // Add spacebar for jumping
             };
 
+            function createNameLabel(text) {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = 512;  // Increased canvas size for better resolution
+                canvas.height = 128;
+
+                // Draw text with multiple outlines for better visibility
+                context.font = 'Bold 48px Arial';  // Increased font size
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+
+                // Draw multiple outlines for better visibility
+                context.strokeStyle = 'black';
+                context.lineWidth = 8;
+                context.strokeText(text, canvas.width / 2, canvas.height / 2);
+                
+                // Draw white fill
+                context.fillStyle = 'white';
+                context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+                // Create sprite
+                const texture = new THREE.CanvasTexture(canvas);
+                const material = new THREE.SpriteMaterial({ 
+                    map: texture,
+                    transparent: true,
+                    depthTest: false  // Makes text always render on top
+                });
+                const sprite = new THREE.Sprite(material);
+                sprite.scale.set(3, 0.75, 1);  // Adjusted scale for better visibility
+                sprite.renderOrder = 1;  // Ensures text renders on top
+
+                return sprite;
+            }
+
+            function updateNameLabel(cow, newUsername) {
+                // Find and remove only the name label sprite
+                for (let i = cow.children.length - 1; i >= 0; i--) {
+                    const child = cow.children[i];
+                    if (child instanceof THREE.Sprite) {
+                        cow.remove(child);
+                    }
+                }
+                // Create and add new label
+                const nameLabel = createNameLabel(newUsername);
+                cow.add(nameLabel);
+                nameLabel.position.y = 3;  // Raised position for better visibility
+            }
+
             // Create player character
             const player = createCow();
             player.position.y = 0.5;
             player.castShadow = true;
             scene.add(player);
+
+            // Add name label to player
+            updateNameLabel(player, username);
 
             // Add OrbitControls
             const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -494,6 +545,10 @@
                 otherPlayer.rotation.y = data.rotation;
                 otherPlayer.castShadow = true;
                 scene.add(otherPlayer);
+
+                // Add name label
+                updateNameLabel(otherPlayer, data.username || 'Anonymous');
+
                 otherPlayers.set(data.id, {
                     cow: otherPlayer,
                     username: data.username || 'Anonymous'
@@ -506,8 +561,9 @@
                 if (playerData) {
                     playerData.cow.position.set(data.position.x, data.position.y, data.position.z);
                     playerData.cow.rotation.y = data.rotation;
-                    if (data.username) {
+                    if (data.username && data.username !== playerData.username) {
                         playerData.username = data.username;
+                        updateNameLabel(playerData.cow, data.username);
                     }
                     updatePlayersList();
                 }
@@ -517,6 +573,7 @@
                 const playerData = otherPlayers.get(data.id);
                 if (playerData) {
                     playerData.username = data.username;
+                    updateNameLabel(playerData.cow, data.username);
                     updatePlayersList();
                 }
             }
