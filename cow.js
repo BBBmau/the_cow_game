@@ -2,77 +2,60 @@
 export function createCow() {
     const cowGroup = new THREE.Group();
 
-    // Body
-    const bodyGeometry = new THREE.BoxGeometry(1.5, 1, 2);
-    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    // Materials
+    const white = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const black = new THREE.MeshStandardMaterial({ color: 0x000000 });
+    const pink = new THREE.MeshStandardMaterial({ color: 0xffa3b1 });
+    const brown = new THREE.MeshStandardMaterial({ color: 0x5a3a1a });
+
+    // Cow body
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), white);
     body.position.y = 1;
     cowGroup.add(body);
 
     // Head
-    const headGeometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-    const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.set(0, 1.2, 0.8);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.75, 0.75), white);
+    head.position.set(1.375, 1.25, 0);
     cowGroup.add(head);
 
-    // Snout
-    const snoutGeometry = new THREE.BoxGeometry(0.4, 0.3, 0.4);
-    const snoutMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
-    const snout = new THREE.Mesh(snoutGeometry, snoutMaterial);
-    snout.position.set(0, 1.1, 1.2);
-    cowGroup.add(snout);
+    // Horns
+    const hornLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.25, 0.1), brown);
+    hornLeft.position.set(1.625, 1.625, -0.2);
+    const hornRight = hornLeft.clone();
+    hornRight.position.z = 0.2;
+    cowGroup.add(hornLeft, hornRight);
 
     // Legs
-    const legGeometry = new THREE.BoxGeometry(0.3, 1, 0.3);
-    const legMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
-    
-    const positions = [
-        [-0.5, 0.5, 0.5],  // Front left
-        [0.5, 0.5, 0.5],   // Front right
-        [-0.5, 0.5, -0.5], // Back left
-        [0.5, 0.5, -0.5]   // Back right
+    for (let i = -1; i <= 1; i += 2) {
+        for (let j = -0.4; j <= 0.4; j += 0.8) {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.25), black);
+            leg.position.set(i * 0.75, 0.5, j);
+            cowGroup.add(leg);
+        }
+    }
+
+    // Udder
+    const udder = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.15, 0.25), pink);
+    udder.position.set(0, 0.35, 0);
+    cowGroup.add(udder);
+
+    // Black spots
+    const spots = [
+        [0.25, 1.25, 0.5],
+        [-0.5, 1, -0.5],
+        [-0.75, 1.15, 0],
+        [0.5, 1.1, -0.4],
+        [-0.4, 1.2, 0.4],
+        [0.6, 1.05, 0.25]
     ];
-
-    positions.forEach(pos => {
-        const leg = new THREE.Mesh(legGeometry, legMaterial);
-        leg.position.set(...pos);
-        cowGroup.add(leg);
-    });
-
-    // Ears
-    const earGeometry = new THREE.BoxGeometry(0.2, 0.3, 0.1);
-    const earMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
-    
-    const leftEar = new THREE.Mesh(earGeometry, earMaterial);
-    leftEar.position.set(-0.2, 1.6, 0.6);
-    cowGroup.add(leftEar);
-
-    const rightEar = new THREE.Mesh(earGeometry, earMaterial);
-    rightEar.position.set(0.2, 1.6, 0.6);
-    cowGroup.add(rightEar);
-
-    // Spots
-    const spotGeometry = new THREE.CircleGeometry(0.2, 32);
-    const spotMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
-    
-    const spotPositions = [
-        [-0.5, 1.01, 0.5],
-        [0.5, 1.01, -0.5],
-        [0, 1.01, 0],
-        [-0.3, 1.01, -0.3],
-        [0.3, 1.01, 0.3]
-    ];
-
-    spotPositions.forEach(pos => {
-        const spot = new THREE.Mesh(spotGeometry, spotMaterial);
-        spot.position.set(...pos);
-        spot.rotation.x = -Math.PI / 2;
+    spots.forEach(([x, y, z]) => {
+        const spot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.05), black);
+        spot.position.set(x, y, z);
         cowGroup.add(spot);
     });
 
-    // Rotate the entire cow model 180 degrees to face forward
-    cowGroup.rotation.y = Math.PI;
+    // Rotate the entire cow model to make one side face forward
+    cowGroup.rotation.y = Math.PI / 2;
 
     return cowGroup;
 }
@@ -99,10 +82,12 @@ export function updateCowMovement(player, keys, moveSpeed, camera) {
         moveZ -= cameraDirection.z;
     }
     if (keys.a) {
+        // Strafe left relative to camera direction
         moveX += cameraDirection.z;
         moveZ -= cameraDirection.x;
     }
     if (keys.d) {
+        // Strafe right relative to camera direction
         moveX -= cameraDirection.z;
         moveZ += cameraDirection.x;
     }
@@ -118,11 +103,23 @@ export function updateCowMovement(player, keys, moveSpeed, camera) {
     if (keys.w || keys.s || keys.a || keys.d) {
         player.position.x += moveX * moveSpeed;
         player.position.z += moveZ * moveSpeed;
-        // Make cow face the direction it's moving
-        player.rotation.y = Math.atan2(moveX, moveZ);
+        
+        // Calculate target rotation based on movement direction
+        const targetRotation = Math.atan2(moveX, moveZ) - Math.PI / 2;
+        
+        // Apply smooth rotation
+        const currentRotation = player.rotation.y;
+        const rotationDiff = targetRotation - currentRotation;
+        
+        // Normalize the rotation difference to be between -PI and PI
+        const normalizedDiff = Math.atan2(Math.sin(rotationDiff), Math.cos(rotationDiff));
+        
+        // Apply smooth rotation with increased speed for more responsive turning
+        player.rotation.y += normalizedDiff * 0.2;
     }
 
-    // Keep player within bounds
-    player.position.x = Math.max(-24, Math.min(24, player.position.x));
-    player.position.z = Math.max(-24, Math.min(24, player.position.z));
+    // Keep player within bounds (adjusted for larger cow size)
+    const bounds = 20;
+    player.position.x = Math.max(-bounds, Math.min(bounds, player.position.x));
+    player.position.z = Math.max(-bounds, Math.min(bounds, player.position.z));
 } 
