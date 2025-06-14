@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3D Field Scene</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        
+        // Set up scene, camera, and renderer
+        const scene = new THREE.Scene();
+        const plane = new THREE.Plane( new THREE.Vector3( 1, 1, 0.2 ), 3 );
+        const helper = new THREE.PlaneHelper( plane, 1, 0xffff00 );
+        scene.add( helper );
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue background
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // Player movement variables
+        const moveSpeed = 0.15;
+        const keys = {
+            w: false,
+            a: false,
+            s: false,
+            d: false
+        };
+
+        // Create player character
+        const playerGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.y = 0.5; // Half the height of the sphere
+        player.castShadow = true;
+        scene.add(player);
+
+        // Add OrbitControls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = false;
+        controls.minDistance = 5;
+        controls.maxDistance = 50;
+        controls.maxPolarAngle = Math.PI / 2;
+        controls.enabled = false; // Disable orbit controls for first-person movement
+
+        // Add ambient light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // Add directional light (sun)
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        // Create ground
+        const groundGeometry = new THREE.PlaneGeometry(50, 50);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x7CFC00,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Function to create a tree
+        function createTree(x, z) {
+            const treeGroup = new THREE.Group();
+
+            // Tree trunk
+            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 1, 8);
+            const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.y = 0.5;
+            trunk.castShadow = true;
+            treeGroup.add(trunk);
+
+            // Tree top
+            const topGeometry = new THREE.ConeGeometry(1, 2, 8);
+            const topMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+            const top = new THREE.Mesh(topGeometry, topMaterial);
+            top.position.y = 2;
+            top.castShadow = true;
+            treeGroup.add(top);
+
+            treeGroup.position.set(x, 0, z);
+            return treeGroup;
+        }
+
+        // Add some trees
+        for (let i = 0; i < 10; i++) {
+            const x = Math.random() * 40 - 20;
+            const z = Math.random() * 40 - 20;
+            const tree = createTree(x, z);
+            scene.add(tree);
+        }
+
+        // Position camera
+        camera.position.set(0, 2, 5);
+        camera.lookAt(player.position);
+
+        // Keyboard event listeners
+        document.addEventListener('keydown', (event) => {
+            if (keys.hasOwnProperty(event.key.toLowerCase())) {
+                keys[event.key.toLowerCase()] = true;
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            if (keys.hasOwnProperty(event.key.toLowerCase())) {
+                keys[event.key.toLowerCase()] = false;
+            }
+        });
+
+        // Mouse movement for looking around
+        document.addEventListener('mousemove', (event) => {
+            if (document.pointerLockElement === document.body) {
+                const movementX = event.movementX || 0;
+                const movementY = event.movementY || 0;
+                
+                player.rotation.y -= movementX * 0.002;
+                camera.rotation.x -= movementY * 0.002;
+                
+                // Limit vertical camera rotation
+                camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+            }
+        });
+
+        // Click to lock pointer
+        document.addEventListener('click', () => {
+            document.body.requestPointerLock();
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Handle movement but why?
+            if (keys.w) {
+                player.position.x += Math.sin(player.rotation.y) * moveSpeed;
+                player.position.z += Math.cos(player.rotation.y) * moveSpeed;
+            }
+            if (keys.s) {
+                player.position.x -= Math.sin(player.rotation.y) * moveSpeed;
+                player.position.z -= Math.cos(player.rotation.y) * moveSpeed;
+            }
+            if (keys.a) {
+                player.position.x -= Math.cos(player.rotation.y) * moveSpeed;
+                player.position.z += Math.sin(player.rotation.y) * moveSpeed;
+            }
+            if (keys.d) {
+                player.position.x += Math.cos(player.rotation.y) * moveSpeed;
+                player.position.z -= Math.sin(player.rotation.y) * moveSpeed;
+            }
+
+            // Keep player within bounds
+            player.position.x = Math.max(-24, Math.min(24, player.position.x));
+            player.position.z = Math.max(-24, Math.min(24, player.position.z));
+
+            // Update camera position to follow player
+            const cameraOffset = new THREE.Vector3(0, 2, 0); // Camera height above player
+            camera.position.copy(player.position).add(cameraOffset);
+            
+            // Calculate the point to look at based on player's rotation
+            const lookAtPoint = new THREE.Vector3(
+                player.position.x + Math.sin(player.rotation.y) * 10,
+                player.position.y + 2,
+                player.position.z + Math.cos(player.rotation.y) * 10
+            );
+            camera.lookAt(lookAtPoint);
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        animate();
+    </script>
+</body>
+</html> 
