@@ -118,6 +118,34 @@ export function updateCowMovement(player, keys, moveSpeed, camera) {
         player.rotation.y += normalizedDiff * 0.2;
     }
 
+    // Initialize jump properties if they don't exist
+    if (!player.velocity) {
+        player.velocity = 0;
+        player.isGrounded = true;
+    }
+
+    // Apply gravity
+    const gravity = 0.015;
+    const jumpForce = 0.15;
+    const groundLevel = 0.5; // Height of the cow's legs
+
+    // Handle jumping
+    if (keys[' '] && player.isGrounded) { // Space bar
+        player.velocity = jumpForce;
+        player.isGrounded = false;
+    }
+
+    // Apply gravity and update position
+    player.velocity -= gravity;
+    player.position.y += player.velocity;
+
+    // Ground collision
+    if (player.position.y <= groundLevel) {
+        player.position.y = groundLevel;
+        player.velocity = 0;
+        player.isGrounded = true;
+    }
+
     // Keep player within bounds (adjusted for larger cow size)
     const bounds = 20;
     player.position.x = Math.max(-bounds, Math.min(bounds, player.position.x));

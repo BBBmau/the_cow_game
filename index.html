@@ -59,12 +59,13 @@
             w: false,
             a: false,
             s: false,
-            d: false
+            d: false,
+            ' ': false  // Add spacebar for jumping
         };
 
         // Create player character
         const player = createCow();
-        player.position.y = 0.25;
+        player.position.y = 0.5;
         player.castShadow = true;
         scene.add(player);
 
@@ -221,17 +222,20 @@
             // Update cow movement
             updateCowMovement(player, keys, moveSpeed, camera);
 
-            // Update camera position to follow player
+            // Update camera position to orbit around player
             const cameraDistance = 5;
-            const cameraHeight = 3;
             
             // Calculate camera position based on orbit angle
             camera.position.x = player.position.x + Math.sin(cameraAngle) * cameraDistance;
             camera.position.z = player.position.z + Math.cos(cameraAngle) * cameraDistance;
-            camera.position.y = cameraHeight;
             
-            // Look at player
-            camera.lookAt(player.position);
+            // Look at player with offset for camera tilt
+            const lookAtPoint = new THREE.Vector3(
+                player.position.x,
+                player.position.y + 1,
+                player.position.z
+            );
+            camera.lookAt(lookAtPoint);
 
             // Update debug view
             debugPlayer.position.set(player.position.x, 0.1, player.position.z);
