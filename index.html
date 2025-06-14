@@ -5,9 +5,30 @@
     <style>
         body { margin: 0; }
         canvas { display: block; }
+        #debugView {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 200px;
+            height: 200px;
+            border: 2px solid white;
+            background: rgba(0, 0, 0, 0.5);
+        }
+        #coordinates {
+            position: fixed;
+            top: 230px;
+            right: 20px;
+            color: white;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border: 2px solid white;
+        }
     </style>
 </head>
 <body>
+    <div id="debugView"></div>
+    <div id="coordinates"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script>
@@ -23,6 +44,16 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
+
+        // Set up debug view
+        const debugScene = new THREE.Scene();
+        debugScene.background = new THREE.Color(0x000000);
+        const debugCamera = new THREE.OrthographicCamera(-25, 25, 25, -25, 0.1, 1000);
+        debugCamera.position.set(0, 50, 0);
+        debugCamera.lookAt(0, 0, 0);
+        const debugRenderer = new THREE.WebGLRenderer({ antialias: true });
+        debugRenderer.setSize(200, 200);
+        document.getElementById('debugView').appendChild(debugRenderer.domElement);
 
         // Player movement variables
         const moveSpeed = 0.15;
@@ -73,6 +104,35 @@
         ground.receiveShadow = true;
         scene.add(ground);
 
+        // Add debug ground
+        const debugGround = new THREE.Mesh(
+            new THREE.PlaneGeometry(50, 50),
+            new THREE.MeshBasicMaterial({ color: 0x7CFC00, wireframe: true })
+        );
+        debugGround.rotation.x = -Math.PI / 2;
+        debugScene.add(debugGround);
+
+        // Add debug player indicator
+        const debugPlayer = new THREE.Mesh(
+            new THREE.CircleGeometry(0.5, 32),
+            new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        );
+        debugPlayer.rotation.x = -Math.PI / 2;
+        debugScene.add(debugPlayer);
+
+        // Add debug direction indicator
+        const debugDirection = new THREE.Mesh(
+            new THREE.ConeGeometry(0.5, 1, 32),
+            new THREE.MeshBasicMaterial({ color: 0xffff00 })
+        );
+        debugDirection.rotation.x = -Math.PI / 2;
+        debugDirection.position.y = 0.1;
+        debugScene.add(debugDirection);
+
+        // Add debug trees
+        const debugTrees = new THREE.Group();
+        debugScene.add(debugTrees);
+
         // Function to create a tree
         function createTree(x, z) {
             const treeGroup = new THREE.Group();
@@ -94,7 +154,16 @@
             treeGroup.add(top);
 
             treeGroup.position.set(x, 0, z);
-            return treeGroup;
+            scene.add(treeGroup);
+
+            // Add debug tree
+            const debugTree = new THREE.Mesh(
+                new THREE.CircleGeometry(0.3, 32),
+                new THREE.MeshBasicMaterial({ color: 0x228B22 })
+            );
+            debugTree.rotation.x = -Math.PI / 2;
+            debugTree.position.set(x, 0.1, z);
+            debugTrees.add(debugTree);
         }
 
         // Add some trees
@@ -102,7 +171,6 @@
             const x = Math.random() * 40 - 20;
             const z = Math.random() * 40 - 20;
             const tree = createTree(x, z);
-            scene.add(tree);
         }
 
         // Position camera
@@ -129,10 +197,16 @@
                 const movementY = event.movementY || 0;
                 
                 player.rotation.y -= movementX * 0.002;
-                camera.rotation.x -= movementY * 0.002;
+                camera.rotation.y -= movementX * 0.002;
                 
-                // Limit vertical camera rotation
-                camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+                // Update camera height based on mouse Y movement
+                const currentHeight = camera.position.y;
+                const newHeight = currentHeight + movementY * 0.01; // Adjust multiplier for sensitivity
+                
+                // Limit the height range
+                if (newHeight > 1 && newHeight < 10) {
+                    camera.position.y = newHeight;
+                }
             }
         });
 
@@ -155,12 +229,12 @@
                 player.position.z -= Math.cos(player.rotation.y) * moveSpeed;
             }
             if (keys.a) {
-                player.position.x -= Math.cos(player.rotation.y) * moveSpeed;
-                player.position.z += Math.sin(player.rotation.y) * moveSpeed;
-            }
-            if (keys.d) {
                 player.position.x += Math.cos(player.rotation.y) * moveSpeed;
                 player.position.z -= Math.sin(player.rotation.y) * moveSpeed;
+            }
+            if (keys.d) {
+                player.position.x -= Math.cos(player.rotation.y) * moveSpeed;
+                player.position.z += Math.sin(player.rotation.y) * moveSpeed;
             }
 
             // Keep player within bounds
@@ -168,18 +242,38 @@
             player.position.z = Math.max(-24, Math.min(24, player.position.z));
 
             // Update camera position to follow player
-            const cameraOffset = new THREE.Vector3(0, 2, 0); // Camera height above player
-            camera.position.copy(player.position).add(cameraOffset);
+            const cameraDistance = 5; // Distance behind player
+            const cameraHeight = 3;   // Height above player
             
-            // Calculate the point to look at based on player's rotation
+            // Calculate camera position based on player's position and rotation
+            camera.position.x = player.position.x - Math.sin(player.rotation.y) * cameraDistance;
+            camera.position.z = player.position.z - Math.cos(player.rotation.y) * cameraDistance;
+            
+            // Look at player with offset for camera tilt
             const lookAtPoint = new THREE.Vector3(
-                player.position.x + Math.sin(player.rotation.y) * 10,
-                player.position.y + 2,
-                player.position.z + Math.cos(player.rotation.y) * 10
+                player.position.x,
+                player.position.y + 1, // Look slightly above player
+                player.position.z
             );
             camera.lookAt(lookAtPoint);
 
+            // Update debug view
+            debugPlayer.position.set(player.position.x, 0.1, player.position.z);
+            debugDirection.position.set(player.position.x, 0.1, player.position.z);
+            debugDirection.rotation.z = -player.rotation.y;
+
+            // Update coordinate display
+            const coordinatesDiv = document.getElementById('coordinates');
+            coordinatesDiv.innerHTML = `
+                Position:<br>
+                X: ${player.position.x.toFixed(2)}<br>
+                Y: ${player.position.y.toFixed(2)}<br>
+                Z: ${player.position.z.toFixed(2)}<br>
+                Rotation: ${(player.rotation.y * (180/Math.PI)).toFixed(2)}°
+            `;
+
             renderer.render(scene, camera);
+            debugRenderer.render(debugScene, debugCamera);
         }
 
         // Handle window resize
