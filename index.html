@@ -24,16 +24,32 @@
             padding: 10px;
             border: 2px solid white;
         }
+        #players {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border: 2px solid white;
+        }
     </style>
 </head>
 <body>
     <div id="debugView"></div>
     <div id="coordinates"></div>
+    <div id="players"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script type="module">
         import { createCow, updateCowMovement } from './cow.js';
         
+        // WebSocket connection
+        const ws = new WebSocket('ws://localhost:8080');
+        let clientId = null;
+        const otherPlayers = new Map();
+
         // Set up scene, camera, and renderer
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
@@ -215,12 +231,99 @@
             document.body.requestPointerLock();
         });
 
+        // WebSocket event handlers
+        ws.onopen = () => {
+            console.log('Connected to server');
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            switch (data.type) {
+                case 'init':
+                    clientId = data.id;
+                    // Create other players that are already in the game
+                    data.players.forEach(playerData => {
+                        if (playerData.id !== clientId) {
+                            createOtherPlayer(playerData);
+                        }
+                    });
+                    break;
+
+                case 'player_joined':
+                    createOtherPlayer(data);
+                    break;
+
+                case 'position_update':
+                    updateOtherPlayer(data);
+                    break;
+
+                case 'player_left':
+                    removeOtherPlayer(data.id);
+                    break;
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('Disconnected from server');
+        };
+
+        function createOtherPlayer(data) {
+            const otherPlayer = createCow();
+            otherPlayer.position.set(data.position.x, data.position.y, data.position.z);
+            otherPlayer.rotation.y = data.rotation;
+            otherPlayer.castShadow = true;
+            scene.add(otherPlayer);
+            otherPlayers.set(data.id, otherPlayer);
+            updatePlayersList();
+        }
+
+        function updateOtherPlayer(data) {
+            const otherPlayer = otherPlayers.get(data.id);
+            if (otherPlayer) {
+                otherPlayer.position.set(data.position.x, data.position.y, data.position.z);
+                otherPlayer.rotation.y = data.rotation;
+            }
+        }
+
+        function removeOtherPlayer(id) {
+            const otherPlayer = otherPlayers.get(id);
+            if (otherPlayer) {
+                scene.remove(otherPlayer);
+                otherPlayers.delete(id);
+                updatePlayersList();
+            }
+        }
+
+        function updatePlayersList() {
+            const playersDiv = document.getElementById('players');
+            playersDiv.innerHTML = `
+                Players Online: ${otherPlayers.size + 1}<br>
+                Your ID: ${clientId}<br>
+                Other Players:<br>
+                ${Array.from(otherPlayers.keys()).join('<br>')}
+            `;
+        }
+
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
 
             // Update cow movement
             updateCowMovement(player, keys, moveSpeed, camera);
+
+            // Send position update to server
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'update_position',
+                    position: {
+                        x: player.position.x,
+                        y: player.position.y,
+                        z: player.position.z
+                    },
+                    rotation: player.rotation.y
+                }));
+            }
 
             // Update camera position to orbit around player
             const cameraDistance = 5;
