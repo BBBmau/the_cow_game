@@ -1,7 +1,23 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
 const WebSocket = require('ws');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+
+// agones.js SDK init
+const AgonesSDK = require('@google-cloud/agones-sdk');
+
+let agonesSDK = new AgonesSDK();
+
+await agonesSDK.connect();
+
+agonesSDK.health((error) => {
+	console.error('error', error);
+});
+
+await agonesSDK.ready();
 
 // Create HTTP server
 const server = http.createServer((req, res) => {
