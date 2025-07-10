@@ -9,15 +9,8 @@ const path = require('path');
 // agones.js SDK init
 const AgonesSDK = require('@google-cloud/agones-sdk');
 
-let agonesSDK = new AgonesSDK();
 
-await agonesSDK.connect();
 
-agonesSDK.health((error) => {
-	console.error('error', error);
-});
-
-await agonesSDK.ready();
 
 // Create HTTP server
 const server = http.createServer((req, res) => {
@@ -219,4 +212,15 @@ function broadcastToAll(message) {
 const PORT = 6060;
 server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}/`);
-}); 
+});
+
+let agonesSDK = new AgonesSDK();
+
+await agonesSDK.connect();
+
+agonesSDK.health((error) => {
+        console.error('error', error);
+});
+
+await agonesSDK.ready();
+
