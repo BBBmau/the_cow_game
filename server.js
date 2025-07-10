@@ -224,3 +224,4 @@ agonesSDK.health((error) => {
 
 await agonesSDK.ready();
 
+await agonesSDK.allocate(); 
