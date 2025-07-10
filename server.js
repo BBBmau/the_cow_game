@@ -200,7 +200,7 @@ function broadcastToAll(message) {
     });
 }
 
-const PORT = 8080;
+const PORT = 6060;
 server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}/`);
 }); 

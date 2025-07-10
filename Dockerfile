@@ -2,5 +2,5 @@
     COPY package.json package-lock.json ./
     RUN npm install
     COPY . .
-    EXPOSE 8080 
+    EXPOSE 6060 
     CMD ["node", "server.js"]
