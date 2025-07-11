@@ -6,12 +6,6 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-// agones.js SDK init
-const AgonesSDK = require('@google-cloud/agones-sdk');
-
-
-
-
 // Create HTTP server
 const server = http.createServer((req, res) => {
     let filePath = '.' + req.url;
@@ -213,15 +207,3 @@ const PORT = 6060;
 server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}/`);
 });
-
-let agonesSDK = new AgonesSDK();
-
-await agonesSDK.connect();
-
-agonesSDK.health((error) => {
-        console.error('error', error);
-});
-
-await agonesSDK.ready();
-
-await agonesSDK.allocate(); 
