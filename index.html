@@ -256,7 +256,9 @@
 
         function initGame() {
             // WebSocket connection
-            window.ws = new WebSocket('ws://localhost:8080');
+            const wsProtocol = window.location.protocol === 'http:' ? 'wss' : 'ws';
+            const wsHost = window.location.host;
+            window.ws = new WebSocket(`${wsProtocol}://${wsHost}`);            
             let clientId = null;
             const otherPlayers = new Map();
 
