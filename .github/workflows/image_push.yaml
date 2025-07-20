@@ -4,8 +4,14 @@ on:
   workflow_dispatch: # manually trigger the workflow
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'infra/**'
+      - '.github/**'
   pull_request:
     branches: [ main ] # testing within PRs before merging to main
+    paths-ignore:
+      - 'infra/**'
+      - '.github/**'
 
 env:
   PROJECT_ID: thecowgame
