@@ -36,7 +36,7 @@ jobs:
         chmod 600 ../../credentials/thecowgame-clustermanager.json
     - name: Get GKE cluster credentials
       run: |
-        gcloud container clusters get-credentials primary --region us-west1 --project thecowgame
+        gcloud container clusters get-credentials the-cow-game-cluster --region us-west1 --project thecowgame
         
     - name: Restart deployment to pull latest image
       run: |
