@@ -1,6 +1,5 @@
 terraform {
   backend "gcs" {
-    credentials = "../../credentials/thecowgame-clustermanager.json"
     bucket      = "cow_game_k8s_tfstate"
     prefix      = "terraform/state"
   }
@@ -18,13 +17,11 @@ terraform {
 }
 
 provider "google" {
-  credentials = "${file(var.credentials)}"
   project     = var.project_id
   region      = var.region
 }
 
 provider "google-beta" {
-   credentials = "${file(var.credentials)}"
    project     = var.project_id
    region      = var.region
 }

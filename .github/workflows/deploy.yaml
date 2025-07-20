@@ -1,0 +1,52 @@
+name: Deploy to GCP
+
+on:
+  workflow_dispatch: # manually trigger the workflow
+  workflow_run:
+    workflows: ["Build and Push image to GCP Artifact Registry"]
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        project_id: thecowgame
+
+    - name: Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+      
+    - name: Install gke-gcloud-auth-plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+      
+    - name: Create credentials directory and file
+      run: |
+        mkdir -p ../../credentials
+        echo '${{ secrets.GCP_SA_KEY }}' > ../../credentials/thecowgame-clustermanager.json
+        chmod 600 ../../credentials/thecowgame-clustermanager.json
+    - name: Get GKE cluster credentials
+      run: |
+        gcloud container clusters get-credentials primary --region us-west1 --project thecowgame
+        
+    - name: Restart deployment to pull latest image
+      run: |
+        kubectl rollout restart deployment/the-cow-game-server -n default
+        
+    - name: Wait for rollout to complete
+      run: |
+        kubectl rollout status deployment/the-cow-game-server -n default --timeout=300s
+        
+    - name: Check deployment status
+      run: |
+        kubectl get pods -n default
+        kubectl describe deployment/the-cow-game-server -n default

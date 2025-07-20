@@ -81,9 +81,9 @@ resource "kubernetes_secret" "artifact_registry_secret" {
       auths = {
         "us-west1-docker.pkg.dev" = {
           username = "_json_key"
-          password = file("../../credentials/thecowgame-clustermanager.json")
+          password = file("../../../credentials/thecowgame-clustermanager.json")
           email    = "cluster-manager@thecowgame.iam.gserviceaccount.com"
-          auth     = base64encode(format("%s:%s", "_json_key", file("../../credentials/thecowgame-clustermanager.json")))
+          auth     = base64encode(format("%s:%s", "_json_key", file("../../../credentials/thecowgame-clustermanager.json")))
         }
       }
     })
