@@ -40,7 +40,20 @@ jobs:
       run: |
         gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
+    - name: Check if image already exists with current hash
+      id: check-image
+      run: |
+        # Try to pull the image with current commit hash
+        if docker pull ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ github.sha }} 2>/dev/null; then
+          echo "Image with hash ${{ github.sha }} already exists"
+          echo "skip_build=true" >> $GITHUB_OUTPUT
+        else
+          echo "Image with hash ${{ github.sha }} does not exist, will build"
+          echo "skip_build=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: Build and push Docker image
+      if: steps.check-image.outputs.skip_build != 'true'
       run: |
         docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ github.sha }} .
         docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ github.sha }}
@@ -53,5 +66,12 @@ jobs:
         fi
 
     - name: Output image URI
+      if: steps.check-image.outputs.skip_build != 'true'
       run: |
+        echo "Image URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ github.sha }}"
+        
+    - name: Skip build notification
+      if: steps.check-image.outputs.skip_build == 'true'
+      run: |
+        echo "Skipping build - image with hash ${{ github.sha }} already exists"
         echo "Image URI: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE }}:${{ github.sha }}" 
