@@ -44,8 +44,10 @@ jobs:
     - name: Get GKE cluster credentials
       run: |
         gcloud container clusters get-credentials the-cow-game-cluster --region us-west1 --project thecowgame
+
     - name: Terraform apply using latest SHA from image push workflow
       run: |
+        terraform init
         terraform apply -var="image_sha=${{ github.event.workflow_run.head_sha }}"
 
     - name: Check deployment status
