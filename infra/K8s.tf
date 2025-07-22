@@ -39,7 +39,7 @@ resource "kubernetes_deployment" "game_server" {
 
       spec {
         container {
-          image = "us-west1-docker.pkg.dev/thecowgame/game-images/mmo-server:latest"
+          image = "us-west1-docker.pkg.dev/thecowgame/game-images/mmo-server:${var.image_sha}"
           name  = "thecowgameserver"
           image_pull_policy = "Always"
 
