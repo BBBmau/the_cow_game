@@ -128,7 +128,8 @@
             <p>Keys:<br>
             Movement: W, A, S, D, Space<br>
             Moo: T<br>
-            Exit Moo: Escape</p>
+            Exit Moo: Escape<br>
+            Add Hay: H</p>
             <input type="text" id="usernameInput" placeholder="Username" maxlength="20">
             <br>
             <div style="margin: 10px 0;">
@@ -409,9 +410,17 @@
             debugDirection.position.y = 0.1;
             debugScene.add(debugDirection);
 
+            // Track tree and hay positions to avoid intersections
+            const treePositions = [];
+            const hayPositions = [];
+
             // Add debug trees
             const debugTrees = new THREE.Group();
             debugScene.add(debugTrees);
+
+            // Add debug hay
+            const debugHay = new THREE.Group();
+            debugScene.add(debugHay);
 
             // Function to create a tree
             function createTree(x, z) {
@@ -444,6 +453,108 @@
                 debugTree.rotation.x = -Math.PI / 2;
                 debugTree.position.set(x, 0.1, z);  // Slightly above ground for visibility
                 debugTrees.add(debugTree);
+
+                // Track tree position
+                treePositions.push({ x, z });
+            }
+
+            // Function to create hay
+            function createHay(x, z) {
+                const hayGroup = new THREE.Group();
+
+                // Create hay bale using multiple cylinders for a realistic look
+                const hayBaleGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 8);
+                const hayMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xDAA520,  // Goldenrod color for hay
+                    roughness: 0.9,
+                    metalness: 0.1
+                });
+                
+                // Main hay bale
+                const hayBale = new THREE.Mesh(hayBaleGeometry, hayMaterial);
+                hayBale.position.y = 0.15;  // Half the height
+                hayBale.castShadow = true;
+                hayBale.receiveShadow = true;
+                hayGroup.add(hayBale);
+
+                // Add some hay strands on top for texture
+                for (let i = 0; i < 8; i++) {
+                    const strandGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.2, 4);
+                    const strand = new THREE.Mesh(strandGeometry, hayMaterial);
+                    strand.position.y = 0.4;
+                    strand.rotation.x = Math.random() * 0.3 - 0.15;
+                    strand.rotation.z = Math.random() * 0.3 - 0.15;
+                    strand.position.x = (Math.random() - 0.5) * 0.6;
+                    strand.position.z = (Math.random() - 0.5) * 0.6;
+                    hayGroup.add(strand);
+                }
+
+                hayGroup.position.set(x, 0, z);
+                scene.add(hayGroup);
+
+                // Add debug hay indicator
+                const debugHayIndicator = new THREE.Mesh(
+                    new THREE.CircleGeometry(0.25, 32),
+                    new THREE.MeshBasicMaterial({ color: 0xDAA520 })
+                );
+                debugHayIndicator.rotation.x = -Math.PI / 2;
+                debugHayIndicator.position.set(x, 0.05, z);
+                debugHay.add(debugHayIndicator);
+
+                // Track hay position
+                hayPositions.push({ x, z });
+
+                return hayGroup;
+            }
+
+            // Function to check if a position is clear of obstacles
+            function isPositionClear(x, z, radius = 1.0) {
+                // Check against trees
+                for (const tree of treePositions) {
+                    const distance = Math.sqrt((x - tree.x) ** 2 + (z - tree.z) ** 2);
+                    if (distance < radius) return false;
+                }
+                
+                // Check against existing hay
+                for (const hay of hayPositions) {
+                    const distance = Math.sqrt((x - hay.x) ** 2 + (z - hay.z) ** 2);
+                    if (distance < radius) return false;
+                }
+                
+                return true;
+            }
+
+            // Function to find a random clear position
+            function findRandomClearPosition() {
+                let attempts = 0;
+                const maxAttempts = 100;
+                
+                while (attempts < maxAttempts) {
+                    const x = Math.random() * 40 - 20;
+                    const z = Math.random() * 40 - 20;
+                    
+                    if (isPositionClear(x, z, 1.5)) {
+                        return { x, z };
+                    }
+                    attempts++;
+                }
+                
+                // If no clear position found, return a position at the edge
+                return { x: 18, z: 18 };
+            }
+
+            // Function to add hay to map
+            function addHayToMap(data) {
+                const position = findRandomClearPosition();
+                const hay = createHay(position.x, position.z);
+                
+                // Send hay position to server if needed
+                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({
+                        type: 'hay_added',
+                        position: position
+                    }));
+                }
             }
 
             // Add some trees
@@ -464,6 +575,11 @@
             document.addEventListener('keydown', (event) => {
                 if (keys.hasOwnProperty(event.key.toLowerCase())) {
                     keys[event.key.toLowerCase()] = true;
+                }
+                
+                // Add hay with 'H' key for testing
+                if (event.key.toLowerCase() === 'h') {
+                    addHayToMap();
                 }
             });
 
@@ -582,6 +698,11 @@
 
                     case 'chat_message':
                         addChatMessage(data);
+                        break;
+
+                    case 'add_hay_to_map':
+                        console.log('Adding hay to map:', data);
+                        addHayToMap(data);
                         break;
                 }
             };
