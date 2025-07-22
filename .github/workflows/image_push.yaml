@@ -17,7 +17,7 @@ env:
   PROJECT_ID: thecowgame
   REGION: us-west1
   REPOSITORY: game-images
-  IMAGE: mmo-servers
+  IMAGE: mmo-server
 
 jobs:
   build-and-push:
