@@ -36,9 +36,9 @@ jobs:
       
     - name: Create credentials directory and file
       run: |
-        mkdir -p ../../../credentials
-        echo '${{ secrets.GCP_SA_KEY }}' > ../../../credentials/thecowgame-clustermanager.json
-        chmod 600 ../../../credentials/thecowgame-clustermanager.json
+        mkdir -p ../../credentials
+        echo '${{ secrets.GCP_SA_KEY }}' > ../../credentials/thecowgame-clustermanager.json
+        chmod 600 ../../credentials/thecowgame-clustermanager.json
 
     - name: Get GKE cluster credentials
       run: |
