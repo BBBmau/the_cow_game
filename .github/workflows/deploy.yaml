@@ -55,7 +55,7 @@ jobs:
     - name: Terraform apply using latest SHA from image push workflow
       working-directory: infra
       run: |
-        terraform apply -var="image_sha=${{ github.sha }}"
+        terraform apply -var="image_sha=${{ github.sha }}" -auto-approve
 
     - name: Check deployment status
       run: |
