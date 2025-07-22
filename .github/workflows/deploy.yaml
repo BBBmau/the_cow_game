@@ -34,20 +34,24 @@ jobs:
         gcloud components install gke-gcloud-auth-plugin
         echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
       
-    - name: Create credentials directory and file & cd infra
+    - name: Create credentials directory and file
       run: |
         mkdir -p ../../../credentials
         echo '${{ secrets.GCP_SA_KEY }}' > ../../../credentials/thecowgame-clustermanager.json
         chmod 600 ../../../credentials/thecowgame-clustermanager.json
-        cd infra
 
     - name: Get GKE cluster credentials
       run: |
         gcloud container clusters get-credentials the-cow-game-cluster --region us-west1 --project thecowgame
 
-    - name: Terraform apply using latest SHA from image push workflow
+    - name: Terraform init
+      working-directory: infra
       run: |
         terraform init
+
+    - name: Terraform apply using latest SHA from image push workflow
+      working-directory: infra
+      run: |
         terraform apply -var="image_sha=${{ github.event.workflow_run.head_sha }}"
 
     - name: Check deployment status
