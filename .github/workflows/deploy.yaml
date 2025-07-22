@@ -6,6 +6,9 @@ on:
     workflows: ["Build and Push image to GCP Artifact Registry"]
     branches: [ main ]
 
+env:
+    GOOGLE_APPLICATION_CREDENTIALS: ../../credentials/thecowgame-clustermanager.json
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -52,7 +55,7 @@ jobs:
     - name: Terraform apply using latest SHA from image push workflow
       working-directory: infra
       run: |
-        terraform apply -var="image_sha=${{ github.event.workflow_run.head_sha }}"
+        terraform apply -var="image_sha=${{ github.sha }}"
 
     - name: Check deployment status
       run: |
