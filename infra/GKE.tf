@@ -50,12 +50,16 @@ resource "google_container_node_pool" "primary_preemptible_nodes" {
   node_locations = ["us-west1-a"]
 
   cluster    = google_container_cluster.primary.name
-  node_count = 1
-
+  
   lifecycle {
     ignore_changes = [
       node_config[0].labels
     ]
+  }
+
+  autoscaling {
+    min_node_count = 1
+    total_min_node_count = 1
   }
 
   node_config {
