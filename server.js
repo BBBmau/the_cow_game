@@ -6,6 +6,9 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+// Import Redis connection for stats
+const { client, redisHelpers, REDIS_KEYS } = require('./redis.js');
+
 // Create HTTP server
 const server = http.createServer((req, res) => {
     let filePath = '.' + req.url;
@@ -47,29 +50,68 @@ const wss = new WebSocket.Server({ server });
 // Store connected clients and their cow positions
 const clients = new Map();
 
-wss.on('connection', (ws) => {
+// Initialize Redis connection
+async function initializeRedis() {
+    try {
+        // Wait for Redis connection
+        await client.connect();
+        console.log('Redis connected successfully for stats');
+        
+        // Initialize global stats if they don't exist
+        const globalStats = await redisHelpers.getGlobalStats();
+        if (!globalStats.serverStartTime) {
+            await redisHelpers.updateGlobalStats({ serverStartTime: Date.now() });
+        }
+    } catch (error) {
+        console.error('Failed to connect to Redis:', error);
+    }
+}
+
+wss.on('connection', async (ws) => {
     // Generate a unique ID for this client
     const clientId = Math.random().toString(36).substr(2, 9);
+    
+    // Initialize client with default values
     clients.set(clientId, { 
         ws, 
         position: { x: 0, y: 0.5, z: 0 }, 
         rotation: 0,
-        username: 'Anonymous', // Default username
-        color: '#ffffff' // Default color
+        username: 'Anonymous',
+        color: '#ffffff'
     });
 
-    // Send the client their ID
-    ws.send(JSON.stringify({
-        type: 'init',
-        id: clientId,
-        players: Array.from(clients.entries()).map(([id, data]) => ({
-            id,
-            username: data.username,
-            position: data.position,
-            rotation: data.rotation,
-            color: data.color
-        }))
-    }));
+    try {
+        const playerStats = await redisHelpers.getPlayerStats(clientId);
+        
+        // Send initial data to client
+        ws.send(JSON.stringify({
+            type: 'init',
+            id: clientId,
+            stats: playerStats,
+            players: Array.from(clients.entries()).map(([id, data]) => ({
+                id,
+                username: data.username,
+                position: data.position,
+                rotation: data.rotation,
+                color: data.color
+            }))
+        }));
+    } catch (error) {
+        console.error('Error loading player data from Redis:', error);
+        // Send basic init without Redis data
+        ws.send(JSON.stringify({
+            type: 'init',
+            id: clientId,
+            stats: { level: 1, experience: 0, coins: 0, timePlayed: 0, cowsFed: 0 },
+            players: Array.from(clients.entries()).map(([id, data]) => ({
+                id,
+                username: data.username,
+                position: data.position,
+                rotation: data.rotation,
+                color: data.color
+            }))
+        }));
+    }
 
     // Broadcast new player to all other clients
     broadcastToOthers(clientId, {
@@ -96,7 +138,7 @@ wss.on('connection', (ws) => {
         }));
     }
 
-    ws.on('message', (message) => {
+    ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
             console.log('Received message:', data);
@@ -166,6 +208,53 @@ wss.on('connection', (ws) => {
                         });
                     }
                     break;
+
+                case 'eat_hay':
+                    try {
+                        await redisHelpers.incrementPlayerStat(clientId, 'hayEaten', 1);
+                        ws.send(JSON.stringify({
+                            type: 'item_collected',
+                            item: data.item
+                        }));
+
+                        // increment experience
+                        redisHelpers.incrementPlayerStat(clientId, 'experience', 10);
+                        // Check for level up
+                        const stats = await redisHelpers.getPlayerStats(clientId);
+                        const newLevel = Math.floor(stats.experience / 100) + 1;
+                        if (newLevel > stats.level) {
+                            await redisHelpers.updatePlayerStats(clientId, { level: newLevel });
+                            ws.send(JSON.stringify({
+                                type: 'level_up',
+                                newLevel: newLevel
+                            }));
+                        }
+                        
+                        // Send updated stats to the player
+                        const updatedStats = await redisHelpers.getPlayerStats(clientId);
+                        ws.send(JSON.stringify({
+                            type: 'stats_updated',
+                            stats: updatedStats
+                        }));
+                    } catch (error) {
+                        console.error('Error feeding cow:', error);
+                    }
+                    break;
+
+                case 'get_stats':
+                    // Send current stats to player
+                    try {
+                        const stats = await redisHelpers.getPlayerStats(clientId);
+                        const globalStats = await redisHelpers.getGlobalStats();
+                        ws.send(JSON.stringify({
+                            type: 'stats_response',
+                            playerStats: stats,
+                            globalStats: globalStats
+                        }));
+                    } catch (error) {
+                        console.error('Error getting stats:', error);
+                    }
+                    break;
             }
         } catch (error) {
             console.error('Error processing message:', error);
@@ -179,6 +268,7 @@ wss.on('connection', (ws) => {
         
         // Remove client and notify others
         clients.delete(clientId);
+        
         broadcastToAll({
             type: 'player_left',
             id: clientId,
@@ -204,6 +294,20 @@ function broadcastToAll(message) {
 }
 
 const PORT = 6060;
-server.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}/`);
-});
+
+// Initialize Redis and start server
+async function startServer() {
+    try {
+        await initializeRedis();
+        
+        server.listen(PORT, () => {
+            console.log(`Server running at http://localhost:${PORT}/`);
+            console.log('Redis integration enabled');
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
+}
+
+startServer();
