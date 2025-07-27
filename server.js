@@ -149,11 +149,15 @@ wss.on('connection', async (ws) => {
     try {
         const playerStats = await redisHelpers.getPlayerStats(clientId);
         
+        // Get global stats
+        const globalStats = await redisHelpers.getGlobalStats();
+        
         // Send initial data to client
         ws.send(JSON.stringify({
             type: 'init',
             id: clientId,
             stats: playerStats,
+            globalStats: globalStats,
             players: Array.from(clients.entries()).map(([id, data]) => ({
                 id,
                 username: data.username,
@@ -353,6 +357,13 @@ wss.on('connection', async (ws) => {
                             type: 'stats_updated',
                             stats: updatedStats
                         }));
+                        
+                        // Get and broadcast updated global stats
+                        const updatedGlobalStats = await redisHelpers.getGlobalStats();
+                        broadcastToAll({
+                            type: 'global_stats_updated',
+                            globalStats: updatedGlobalStats
+                        });
                         
                         // Broadcast hay collection to all players
                         const player = clients.get(clientId);

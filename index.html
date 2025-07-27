@@ -34,17 +34,7 @@
             padding: 10px;
             border: 2px solid white;
         }
-        #stats {
-            position: fixed;
-            top: 20px;
-            left: 250px;
-            color: white;
-            font-family: monospace;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px;
-            border: 2px solid white;
-            min-width: 200px;
-        }
+
         #chatContainer {
             position: fixed;
             bottom: 20px;
@@ -129,6 +119,153 @@
         .hidden {
             display: none !important;
         }
+        
+        #leaderboard {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        #leaderboardContent {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            border: 3px solid #3498db;
+            border-radius: 15px;
+            padding: 2rem;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-shadow: 0 0 30px rgba(52, 152, 219, 0.5);
+        }
+        
+        #leaderboard h1 {
+            color: #ecf0f1;
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .leaderboard-section {
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+        
+        .leaderboard-section h2 {
+            color: #3498db;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 0.5rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-item {
+            background: rgba(52, 152, 219, 0.2);
+            border: 1px solid #3498db;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        .stat-label {
+            color: #bdc3c7;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-value {
+            color: #ecf0f1;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .players-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #34495e;
+            border-radius: 5px;
+            padding: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .player-name {
+            color: #ecf0f1;
+            font-weight: bold;
+        }
+        
+        .player-stats {
+            color: #bdc3c7;
+            font-size: 0.9rem;
+        }
+        
+        .close-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .close-button:hover {
+            background: #c0392b;
+        }
+        
+        .leaderboard-close-hint {
+            text-align: center;
+            color: #bdc3c7;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            font-style: italic;
+        }
+        
+        #mouseIndicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 2px solid #3498db;
+            z-index: 1000;
+        }
+        
+        #mouseIndicator.locked {
+            border-color: #e74c3c;
+            background: rgba(231, 76, 60, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -140,7 +277,8 @@
             Movement: W, A, S, D, Space<br>
             Moo: T<br>
             Exit Moo: Escape<br>
-            Check Stats: Tab</p>
+            View Stats & Leaderboard: Tab<br>
+            Mouse: Click to lock camera • Tab/ESC to show cursor</p>
             <input type="text" id="usernameInput" placeholder="Username" maxlength="20">
             <br>
             <div style="margin: 10px 0;">
@@ -155,10 +293,47 @@
     <div id="debugView"></div>
     <div id="coordinates"></div>
     <div id="players"></div>
-    <div id="stats"></div>
     <div id="chatContainer">
         <div id="chatMessages"></div>
         <input type="text" id="chatInput" placeholder="Type a message...">
+    </div>
+    <div id="mouseIndicator">
+        🖱️ Click to lock mouse • Tab/Escape to show cursor
+    </div>
+    
+    <!-- Leaderboard -->
+    <div id="leaderboard">
+        <div id="leaderboardContent">
+            <h1>🏆 Leaderboard</h1>
+            
+            <!-- Player Stats Section -->
+            <div class="leaderboard-section">
+                <h2>👤 Your Stats</h2>
+                <div class="stats-grid" id="playerStatsGrid">
+                    <!-- Player stats will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Global Stats Section -->
+            <div class="leaderboard-section">
+                <h2>🌍 Global Stats</h2>
+                <div class="stats-grid" id="globalStatsGrid">
+                    <!-- Global stats will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Online Players Section -->
+            <div class="leaderboard-section">
+                <h2>🐄 Online Players</h2>
+                <div class="players-list" id="onlinePlayersList">
+                    <!-- Online players will be populated here -->
+                </div>
+            </div>
+            
+            <div class="leaderboard-close-hint">
+                Press Tab or click × to close
+            </div>
+        </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -169,7 +344,21 @@
         let cowColor = '#ffffff';
         let gameStarted = false;
         let isChatActive = false;
-        let isStatsActive = false; // Start with stats visible
+
+        let isLeaderboardActive = false;
+        let globalStats = {
+            totalPlayers: 0,
+            totalHayEaten: 0,
+            totalTimePlayed: 0,
+            serverStartTime: Date.now()
+        };
+        let playerStats = {
+            level: 1,
+            experience: 0,
+            hayEaten: 0,
+            timePlayed: 0,
+            coins: 0
+        };
         
         // Handle login form
         const loginScreen = document.getElementById('loginScreen');
@@ -202,6 +391,10 @@
                 isChatActive = true;
                 chatInput.focus();
                 chatInput.style.background = 'rgba(255, 255, 255, 1)';
+                // Show mouse cursor when chat is active
+                if (document.pointerLockElement === document.body) {
+                    document.exitPointerLock();
+                }
             } else if (e.key === 'Escape' && isChatActive) {
                 isChatActive = false;
                 chatInput.blur();
@@ -245,9 +438,132 @@
         function handleStatsKeydown(e) {
             if (e.key === 'Tab') {
                 e.preventDefault();
-                isStatsActive = !isStatsActive;
-                updateStatsDisplay();
+                toggleLeaderboard();
             }
+            
+            // ESC key to unlock mouse
+            if (e.key === 'Escape') {
+                if (document.pointerLockElement === document.body) {
+                    document.exitPointerLock();
+                }
+            }
+        }
+        
+        function toggleLeaderboard() {
+            isLeaderboardActive = !isLeaderboardActive;
+            const leaderboard = document.getElementById('leaderboard');
+            
+            if (isLeaderboardActive) {
+                leaderboard.style.display = 'flex';
+                updateLeaderboard();
+                // Show mouse cursor when leaderboard is open
+                if (document.pointerLockElement === document.body) {
+                    document.exitPointerLock();
+                }
+            } else {
+                leaderboard.style.display = 'none';
+            }
+        }
+        
+        function closeLeaderboard() {
+            isLeaderboardActive = false;
+            document.getElementById('leaderboard').style.display = 'none';
+        }
+        
+        function updateLeaderboard() {
+            updatePlayerStatsSection();
+            updateGlobalStatsSection();
+            updateOnlinePlayersSection();
+        }
+        
+        function updatePlayerStatsSection() {
+            const playerStatsGrid = document.getElementById('playerStatsGrid');
+            const expToNextLevel = 100 - (playerStats.experience % 100);
+            console.log('Updating player stats section with:', playerStats);
+            
+            playerStatsGrid.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-label">Level</div>
+                    <div class="stat-value">${playerStats.level}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Experience</div>
+                    <div class="stat-value">${playerStats.experience}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Next Level</div>
+                    <div class="stat-value">${expToNextLevel} XP</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Hay Eaten</div>
+                    <div class="stat-value">${playerStats.hayEaten}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Time Played</div>
+                    <div class="stat-value">${Math.floor(playerStats.timePlayed / 60)}m ${playerStats.timePlayed % 60}s</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Coins</div>
+                    <div class="stat-value">${playerStats.coins || 0}</div>
+                </div>
+            `;
+        }
+        
+        function updateGlobalStatsSection() {
+            const globalStatsGrid = document.getElementById('globalStatsGrid');
+            const serverUptime = Math.floor((Date.now() - globalStats.serverStartTime) / 1000);
+            console.log('Updating global stats section with:', globalStats);
+            
+            globalStatsGrid.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-label">Total Players</div>
+                    <div class="stat-value">${globalStats.totalPlayers}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Total Hay Eaten</div>
+                    <div class="stat-value">${globalStats.totalHayEaten}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Total Time Played</div>
+                    <div class="stat-value">${Math.floor(globalStats.totalTimePlayed / 60)}m ${globalStats.totalTimePlayed % 60}s</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Server Uptime</div>
+                    <div class="stat-value">${Math.floor(serverUptime / 60)}m ${serverUptime % 60}s</div>
+                </div>
+            `;
+        }
+        
+        function updateOnlinePlayersSection() {
+            const onlinePlayersList = document.getElementById('onlinePlayersList');
+            const players = Array.from(otherPlayers.values());
+            
+            // Add current player to the list
+            players.unshift({
+                username: username,
+                level: playerStats.level,
+                hayEaten: playerStats.hayEaten,
+                isCurrentPlayer: true
+            });
+            
+            // Sort by level (highest first), then by hay eaten
+            players.sort((a, b) => {
+                if (b.level !== a.level) {
+                    return b.level - a.level;
+                }
+                return b.hayEaten - a.hayEaten;
+            });
+            
+            onlinePlayersList.innerHTML = players.map((player, index) => `
+                <div class="player-item">
+                    <div class="player-name">
+                        ${index + 1}. ${player.username} ${player.isCurrentPlayer ? '(You)' : ''}
+                    </div>
+                    <div class="player-stats">
+                        Level ${player.level} • ${player.hayEaten} hay
+                    </div>
+                </div>
+            `).join('');
         }
 
         // Add event listeners for chat
@@ -596,7 +912,7 @@
                 }
             });
 
-            // Mouse movement for looking around
+            // Mouse movement for looking around (when pointer is locked)
             document.addEventListener('mousemove', (event) => {
                 if (document.pointerLockElement === document.body) {
                     const movementX = event.movementX || 0;
@@ -616,9 +932,31 @@
                 }
             });
 
-            // Click to lock pointer
-            document.addEventListener('click', () => {
-                document.body.requestPointerLock();
+            // Click to lock pointer for mouse look (only when not already locked)
+            document.addEventListener('click', (event) => {
+                // Don't lock pointer if clicking on UI elements
+                if (event.target.closest('#leaderboard, #chatContainer, #players, #coordinates, #debugView')) {
+                    return;
+                }
+                
+                // Only lock if not already locked
+                if (!document.pointerLockElement) {
+                    document.body.requestPointerLock();
+                }
+            });
+            
+            // Add visual indicator for mouse lock state
+            document.addEventListener('pointerlockchange', () => {
+                const mouseIndicator = document.getElementById('mouseIndicator');
+                if (document.pointerLockElement === document.body) {
+                    console.log('Mouse locked - you can look around');
+                    mouseIndicator.textContent = '🔒 Mouse locked - Tab/ESC to show cursor';
+                    mouseIndicator.classList.add('locked');
+                } else {
+                    console.log('Mouse unlocked - click to lock for mouse look');
+                    mouseIndicator.textContent = '🖱️ Click to lock mouse • Tab/Escape to show cursor';
+                    mouseIndicator.classList.remove('locked');
+                }
             });
 
             // WebSocket event handlers
@@ -645,7 +983,22 @@
                         
                         // Update player stats if provided
                         if (data.stats) {
+                            console.log('Received stats from server:', data.stats);
                             playerStats = { ...playerStats, ...data.stats };
+                            console.log('Updated playerStats:', playerStats);
+                        } else {
+                            console.log('No stats received from server');
+                        }
+                        
+                        // Update global stats
+                        if (data.globalStats) {
+                            globalStats = { ...globalStats, ...data.globalStats };
+                            console.log('Updated globalStats:', globalStats);
+                        }
+                        
+                        // Update leaderboard if it's open
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
                         }
                         
                         // Create other players that are already in the game
@@ -671,6 +1024,9 @@
                         console.log('Player joined:', data);
                         createOtherPlayer(data);
                         addChatMessage(`${data.username} joined the game`, 'system');
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
+                        }
                         break;
 
                     case 'color_update':
@@ -710,6 +1066,9 @@
                         console.log('Player left:', data);
                         removeOtherPlayer(data.id);
                         addChatMessage(`${data.username} left the game`, 'system');
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
+                        }
                         break;
 
                     case 'username_update':
@@ -747,12 +1106,22 @@
                     case 'stats_updated':
                         console.log('Stats updated:', data.stats);
                         playerStats = { ...playerStats, ...data.stats };
-                        updateStatsDisplay();
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
+                        }
                         break;
 
                     case 'level_up':
                         console.log('Level up! New level:', data.newLevel);
                         addChatMessage(`🎉 Congratulations! You reached level ${data.newLevel}!`, 'system');
+                        break;
+                        
+                    case 'global_stats_updated':
+                        console.log('Global stats updated:', data.globalStats);
+                        globalStats = { ...globalStats, ...data.globalStats };
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
+                        }
                         break;
                 }
             };
@@ -810,12 +1179,7 @@
                 }
             }
 
-            let playerStats = {
-                level: 1,
-                experience: 0,
-                hayEaten: 0,
-                timePlayed: 0
-            };
+
 
             function updatePlayersList() {
                 const playersDiv = document.getElementById('players');
@@ -827,25 +1191,7 @@
                 `;
             }
 
-            function updateStatsDisplay() {
-                const statsDiv = document.getElementById('stats');
-                
-                // Toggle visibility based on isStatsActive
-                if (isStatsActive) {
-                    statsDiv.style.display = 'block';
-                    const expToNextLevel = 100 - (playerStats.experience % 100);
-                    statsDiv.innerHTML = `
-                        <strong>Your Stats:</strong><br>
-                        Level: ${playerStats.level}<br>
-                        Experience: ${playerStats.experience}<br>
-                        Next Level: ${expToNextLevel} XP<br>
-                        Hay Eaten: ${playerStats.hayEaten}<br>
-                        Time Played: ${Math.floor(playerStats.timePlayed / 60)}m ${playerStats.timePlayed % 60}s
-                    `;
-                } else {
-                    statsDiv.style.display = 'none';
-                }
-            }
+
 
             // Function to check collision with hay
             function checkHayCollision() {
@@ -896,6 +1242,7 @@
             // Time tracking for stats
             let gameStartTime = Date.now();
             let lastTimeUpdate = 0;
+            let lastLeaderboardUpdate = 0;
 
             // Animation loop
             function animate() {
@@ -911,8 +1258,13 @@
                 const currentTime = Date.now();
                 if (currentTime - lastTimeUpdate >= 1000) {
                     playerStats.timePlayed = Math.floor((currentTime - gameStartTime) / 1000);
-                    updateStatsDisplay();
                     lastTimeUpdate = currentTime;
+                }
+                
+                // Update leaderboard every 5 seconds if open
+                if (isLeaderboardActive && currentTime - lastLeaderboardUpdate >= 5000) {
+                    updateLeaderboard();
+                    lastLeaderboardUpdate = currentTime;
                 }
 
                 // Send position update to server
