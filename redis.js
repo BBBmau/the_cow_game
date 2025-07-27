@@ -41,7 +41,8 @@ client.connect().catch(console.error);
 // Redis keys for stats
 const REDIS_KEYS = {
     PLAYER_STATS: 'cow_game:stats:',
-    GLOBAL_STATS: 'cow_game:global_stats'
+    GLOBAL_STATS: 'cow_game:global_stats',
+    USER_ACCOUNTS: 'cow_game:users:'
 };
 
 // Helper functions for stats
@@ -178,6 +179,82 @@ const redisHelpers = {
         
         const updatedStats = { ...currentStats, [statName]: newValue };
         await this.set(REDIS_KEYS.GLOBAL_STATS, updatedStats, 0); // No expiration
+        return updatedStats;
+    },
+
+    // USER AUTHENTICATION FUNCTIONS
+    async createUser(username, passwordHash) {
+        const key = REDIS_KEYS.USER_ACCOUNTS + username.toLowerCase();
+        const userData = {
+            username: username,
+            passwordHash: passwordHash,
+            createdAt: Date.now(),
+            lastLogin: Date.now()
+        };
+        await this.set(key, userData, 0); // No expiration
+        return userData;
+    },
+
+    async getUser(username) {
+        const key = REDIS_KEYS.USER_ACCOUNTS + username.toLowerCase();
+        return await this.get(key);
+    },
+
+    async updateUserLogin(username) {
+        const key = REDIS_KEYS.USER_ACCOUNTS + username.toLowerCase();
+        const userData = await this.get(key);
+        if (userData) {
+            userData.lastLogin = Date.now();
+            await this.set(key, userData, 0);
+        }
+        return userData;
+    },
+
+    async getUserStats(username) {
+        // Use username as the key for stats instead of random clientId
+        const key = REDIS_KEYS.PLAYER_STATS + username.toLowerCase();
+        const stats = await this.get(key) || {
+            level: 1,
+            experience: 0,
+            coins: 0,
+            timePlayed: 0,
+            hayEaten: 0
+        };
+        
+        // Always recalculate level based on experience to ensure consistency
+        const calculatedLevel = Math.floor(stats.experience / 100) + 1;
+        if (stats.level !== calculatedLevel) {
+            console.log(`Level mismatch for ${username}: stored=${stats.level}, calculated=${calculatedLevel}, fixing...`);
+            stats.level = calculatedLevel;
+            // Update the stored stats with correct level
+            await this.set(key, stats, 86400 * 365);
+        }
+        
+        return stats;
+    },
+
+    async updateUserStats(username, updates) {
+        const key = REDIS_KEYS.PLAYER_STATS + username.toLowerCase();
+        const currentStats = await this.get(key) || {};
+        const updatedStats = { ...currentStats, ...updates };
+        await this.set(key, updatedStats, 86400 * 365); // 1 year
+        return updatedStats;
+    },
+
+    async incrementUserStat(username, statName, amount = 1) {
+        const key = REDIS_KEYS.PLAYER_STATS + username.toLowerCase();
+        const currentStats = await this.get(key) || {};
+        const currentValue = currentStats[statName] || 0;
+        const updatedStats = { ...currentStats, [statName]: currentValue + amount };
+        
+        // Always recalculate level when experience changes
+        if (statName === 'experience') {
+            const newLevel = Math.floor(updatedStats.experience / 100) + 1;
+            updatedStats.level = newLevel;
+            console.log(`Experience updated for ${username}: ${updatedStats.experience} XP, Level: ${newLevel}`);
+        }
+        
+        await this.set(key, updatedStats, 86400 * 365); // 1 year
         return updatedStats;
     }
 };

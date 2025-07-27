@@ -88,12 +88,14 @@
             align-items: center;
             z-index: 1000;
         }
-        #loginForm {
-            background: white;
-            padding: 2rem;
-            border-radius: 10px;
+        #loginContainer {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 15px;
             text-align: center;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            margin: 0 auto;
         }
         #usernameInput {
             padding: 10px;
@@ -244,9 +246,9 @@
 </head>
 <body>
     <div id="loginScreen">
-        <div id="loginForm">
+        <div id="loginContainer">
             <h2>Welcome to The Cow Game!</h2>
-            <p>Enter the name of your cow to start playing:</p>
+            <p>Enter your details to start playing:</p>
             <p>Keys:<br>
             Movement: W, A, S, D, Space<br>
             Moo: T<br>
@@ -255,11 +257,17 @@
             Mouse: Click to lock camera • Tab/ESC to show cursor</p>
             <input type="text" id="usernameInput" placeholder="Username" maxlength="20">
             <br>
+            <input type="password" id="passwordInput" placeholder="Password (optional - for saving progress)" maxlength="50" style="padding: 10px; margin: 10px 0; width: 200px; border: 2px solid #ccc; border-radius: 5px; font-size: 16px;">
+            <br>
             <div style="margin: 10px 0;">
                 <label for="cowColor">Choose your cow's color:</label>
                 <input type="color" id="cowColor" value="#ffffff" style="margin-left: 10px;">
             </div>
             <button id="startButton">Start Playing</button>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                <strong>Guest Mode:</strong> Just enter a username (progress won't be saved)<br>
+                <strong>Account Mode:</strong> Enter username + password (progress will be saved)
+            </p>
 
             <p> made with love - mau </p>
         </div>
@@ -333,6 +341,7 @@
         // Handle login form
         const loginScreen = document.getElementById('loginScreen');
         const usernameInput = document.getElementById('usernameInput');
+        const passwordInput = document.getElementById('passwordInput');
         const cowColorInput = document.getElementById('cowColor');
         const startButton = document.getElementById('startButton');
         const chatInput = document.getElementById('chatInput');
@@ -604,22 +613,150 @@
             cowColor = e.target.value;
         });
 
-        startButton.addEventListener('click', () => {
+        startButton.addEventListener('click', async () => {
             username = usernameInput.value.trim();
-            if (username) {
-                loginScreen.classList.add('hidden');
-                gameStarted = true;
-                initGame();
-            } else {
+            const password = passwordInput.value.trim();
+            
+            if (!username) {
                 alert('Please enter a username!');
+                return;
+            }
+
+            // Check if username is taken (for guest users)
+            if (!password && usernameStatus.textContent.includes('already taken')) {
+                alert('This username is already registered. Please choose a different name or enter your password.');
+                return;
+            }
+            
+            // Disable button during authentication/connection
+            startButton.disabled = true;
+            startButton.textContent = password ? 'Authenticating...' : 'Connecting...';
+            
+            try {
+                if (password) {
+                    // Account mode - authenticate with server
+                    const authResult = await authenticateUser(username, password);
+                    if (authResult.success) {
+                        cowColor = cowColorInput.value;
+                        loginScreen.classList.add('hidden');
+                        gameStarted = true;
+                        initGame();
+                    } else {
+                        alert(authResult.message || 'Authentication failed!');
+                    }
+                } else {
+                    // Guest mode - skip authentication
+                    authInfo = {
+                        isAuthenticated: false,
+                        username: null,
+                        password: null
+                    };
+                    cowColor = cowColorInput.value;
+                    loginScreen.classList.add('hidden');
+                    gameStarted = true;
+                    initGame();
+                }
+            } catch (error) {
+                alert('Connection error. Please try again.');
+                console.error('Auth error:', error);
+            } finally {
+                startButton.disabled = false;
+                startButton.textContent = 'Start Playing';
             }
         });
 
+        // Handle Enter key on both username and password inputs
         usernameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                passwordInput.focus();
+            }
+        });
+        
+        passwordInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 startButton.click();
             }
         });
+
+        // Real-time username availability checker
+        let usernameCheckTimeout;
+        const usernameStatus = document.createElement('div');
+        usernameStatus.id = 'usernameStatus';
+        usernameStatus.style.cssText = `
+            margin-top: 5px;
+            font-size: 12px;
+            min-height: 16px;
+        `;
+        usernameInput.parentNode.insertBefore(usernameStatus, usernameInput.nextSibling);
+
+        usernameInput.addEventListener('input', (e) => {
+            const username = e.target.value.trim();
+            
+            // Clear previous timeout
+            if (usernameCheckTimeout) {
+                clearTimeout(usernameCheckTimeout);
+            }
+            
+            // Clear status if username is empty
+            if (!username) {
+                usernameStatus.textContent = '';
+                usernameStatus.style.color = '';
+                return;
+            }
+            
+            // Show checking status
+            usernameStatus.textContent = 'Checking availability...';
+            usernameStatus.style.color = '#888';
+            
+            // Debounce the check
+            usernameCheckTimeout = setTimeout(() => {
+                checkUsernameAvailability(username);
+            }, 500);
+        });
+
+        function checkUsernameAvailability(username) {
+            // Use a simple fetch request instead of WebSocket for username checking
+            fetch('/check-username', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: username })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.available) {
+                    usernameStatus.textContent = '✓ Username available';
+                    usernameStatus.style.color = '#4CAF50';
+                } else {
+                    usernameStatus.textContent = '✗ Username already taken';
+                    usernameStatus.style.color = '#f44336';
+                }
+            })
+            .catch(error => {
+                console.error('Username check error:', error);
+                usernameStatus.textContent = 'Error checking username';
+                usernameStatus.style.color = '#ff9800';
+            });
+        }
+        
+        // Store authentication info for use in initGame
+        let authInfo = {
+            isAuthenticated: false,
+            username: null,
+            password: null
+        };
+        
+        // Authentication function - now just validates and stores info
+        async function authenticateUser(username, password) {
+            // For now, just store the auth info and validate in initGame
+            authInfo = {
+                isAuthenticated: true,
+                username: username,
+                password: password
+            };
+            return { success: true, message: 'Ready to connect' };
+        }
 
         function initGame() {
             // WebSocket connection
@@ -986,14 +1123,24 @@
             // WebSocket event handlers
             window.ws.onopen = () => {
                 console.log('Connected to server');
-                // Send username and color to server
-                const usernameMessage = {
-                    type: 'set_username',
-                    username: username,
-                    color: cowColor
-                };
-                console.log('Sending username:', usernameMessage);
-                window.ws.send(JSON.stringify(usernameMessage));
+                
+                if (authInfo.isAuthenticated) {
+                    // Send authentication first for account mode
+                    console.log('Sending authentication for:', authInfo.username);
+                    window.ws.send(JSON.stringify({
+                        type: 'authenticate',
+                        username: authInfo.username,
+                        password: authInfo.password
+                    }));
+                } else {
+                    // Guest mode - send username directly
+                    console.log('Guest mode - sending username:', username);
+                    window.ws.send(JSON.stringify({
+                        type: 'set_username',
+                        username: username,
+                        color: cowColor
+                    }));
+                }
             };
 
             window.ws.onmessage = (event) => {
@@ -1001,6 +1148,31 @@
                 console.log('Received message:', data);
                 
                 switch (data.type) {
+                    case 'auth_result':
+                        console.log('Authentication result:', data);
+                        if (data.success) {
+                            // Authentication successful, now send username and color
+                            console.log('Auth successful, sending username and color');
+                            window.ws.send(JSON.stringify({
+                                type: 'set_username',
+                                username: authInfo.username,
+                                color: cowColor
+                            }));
+                        } else {
+                            // Authentication failed
+                            alert(data.message || 'Authentication failed!');
+                            // Redirect back to login
+                            window.location.reload();
+                        }
+                        break;
+
+                    case 'username_error':
+                        console.log('Username error:', data.message);
+                        alert(data.message);
+                        // Redirect back to login to choose a different username
+                        window.location.reload();
+                        break;
+                        
                     case 'init':
                         clientId = data.id;
                         console.log('Initialized with ID:', clientId);
@@ -1370,44 +1542,7 @@
             animate();
         }
 
-        // Handle login form submission
-        const loginForm = document.getElementById('loginForm');
-        loginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const username = usernameInput.value.trim() || 'Anonymous';
-            const color = cowColorInput.value;
-            console.log('Setting username:', username, 'with color:', color);
-            
-            // Send username and color to server
-            window.ws.send(JSON.stringify({
-                type: 'set_username',
-                username: username,
-                color: color
-            }));
-            
-            // Update local username and color
-            username = username;
-            cowColor = color;
-            
-            // Create player character with selected color
-            if (player) {
-                scene.remove(player);
-            }
-            player = createCow(color);
-            player.position.set(0, 0.5, 0);
-            player.castShadow = true;
-            scene.add(player);
-            
-            // Create name label
-            const nameLabel = createNameLabel(username);
-            player.add(nameLabel);
-            
-            // Hide login screen
-            loginScreen.style.display = 'none';
-            
-            // Start game loop
-            animate();
-        });
+
     </script>
 </body>
 </html> 

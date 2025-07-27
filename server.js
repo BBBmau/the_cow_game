@@ -8,9 +8,41 @@ const path = require('path');
 
 // Import Redis connection for stats
 const { client, redisHelpers, REDIS_KEYS } = require('./redis.js');
+const crypto = require('crypto');
 
 // Create HTTP server
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+    // Handle username check endpoint
+    if (req.url === '/check-username' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const { username } = JSON.parse(body);
+                const existingUser = await redisHelpers.getUser(username);
+                const isAvailable = !existingUser;
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'POST',
+                    'Access-Control-Allow-Headers': 'Content-Type'
+                });
+                res.end(JSON.stringify({
+                    available: isAvailable,
+                    message: isAvailable ? 'Username available' : 'Username already taken'
+                }));
+            } catch (error) {
+                console.error('Username check error:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ available: false, message: 'Error checking username' }));
+            }
+        });
+        return;
+    }
+
     let filePath = '.' + req.url;
     if (filePath === './') {
         filePath = './index.html';
@@ -49,6 +81,35 @@ const wss = new WebSocket.Server({ server });
 
 // Store connected clients and their cow positions
 const clients = new Map();
+
+// Authentication functions
+function hashPassword(password) {
+    return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+async function authenticateUser(username, password) {
+    try {
+        const user = await redisHelpers.getUser(username);
+        const passwordHash = hashPassword(password);
+        
+        if (user) {
+            // Existing user - check password
+            if (user.passwordHash === passwordHash) {
+                await redisHelpers.updateUserLogin(username);
+                return { success: true, message: 'Login successful', user: user };
+            } else {
+                return { success: false, message: 'Invalid password' };
+            }
+        } else {
+            // New user - create account
+            const newUser = await redisHelpers.createUser(username, passwordHash);
+            return { success: true, message: 'Account created successfully', user: newUser, isNewUser: true };
+        }
+    } catch (error) {
+        console.error('Authentication error:', error);
+        return { success: false, message: 'Server error during authentication' };
+    }
+}
 
 // Hay management system
 const hayManager = {
@@ -148,11 +209,20 @@ wss.on('connection', async (ws) => {
         position: { x: 0, y: 0.5, z: 0 }, 
         rotation: 0,
         username: 'Anonymous',
-        color: '#ffffff'
+        color: '#ffffff',
+        isGuest: true, // Default to guest mode
+        authenticatedUsername: null
     });
 
     try {
-        const playerStats = await redisHelpers.getPlayerStats(clientId);
+        // Default stats for guest users (will be overridden for authenticated users)
+        let playerStats = {
+            level: 1,
+            experience: 0,
+            coins: 0,
+            timePlayed: 0,
+            hayEaten: 0
+        };
         
         // Get global stats
         const globalStats = await redisHelpers.getGlobalStats();
@@ -160,13 +230,24 @@ wss.on('connection', async (ws) => {
         // Get stats for all existing players
         const playersWithStats = await Promise.all(
             Array.from(clients.entries()).map(async ([id, data]) => {
-                const existingPlayerStats = await redisHelpers.getPlayerStats(id);
+                let existingPlayerStats = {
+                    level: 1,
+                    experience: 0,
+                    hayEaten: 0
+                };
+                
+                // Load persistent stats only for authenticated users
+                if (!data.isGuest && data.authenticatedUsername) {
+                    existingPlayerStats = await redisHelpers.getUserStats(data.authenticatedUsername);
+                }
+                
                 return {
                     id,
                     username: data.username,
                     position: data.position,
                     rotation: data.rotation,
                     color: data.color,
+                    isGuest: data.isGuest,
                     stats: {
                         level: existingPlayerStats.level,
                         hayEaten: existingPlayerStats.hayEaten,
@@ -244,10 +325,45 @@ wss.on('connection', async (ws) => {
             console.log('Received message:', data);
 
             switch (data.type) {
+                case 'authenticate':
+                    // Handle user authentication
+                    const authResult = await authenticateUser(data.username, data.password);
+                    ws.send(JSON.stringify({
+                        type: 'auth_result',
+                        success: authResult.success,
+                        message: authResult.message,
+                        isNewUser: authResult.isNewUser || false
+                    }));
+                    
+                    if (authResult.success) {
+                        // Store the authenticated username with the client
+                        const clientData = clients.get(clientId);
+                        if (clientData) {
+                            clientData.authenticatedUsername = data.username;
+                            clientData.isGuest = false;
+                            clients.set(clientId, clientData);
+                        }
+                    }
+                    break;
+
+
+
                 case 'set_username':
                     // Update username and color
                     const client = clients.get(clientId);
                     if (client) {
+                        // For guest users, check if username is already registered
+                        if (client.isGuest) {
+                            const existingUser = await redisHelpers.getUser(data.username);
+                            if (existingUser) {
+                                ws.send(JSON.stringify({
+                                    type: 'username_error',
+                                    message: 'This username is already registered. Please choose a different name or log in with your password.'
+                                }));
+                                return;
+                            }
+                        }
+
                         const oldUsername = client.username;
                         client.username = data.username;
                         // Always update color when provided
@@ -256,6 +372,26 @@ wss.on('connection', async (ws) => {
                             console.log(`Color updated for ${clientId}: ${data.color}`);
                         }
                         console.log(`Username updated for ${clientId}: ${data.username}, color: ${client.color}`);
+                        
+                        // Load stats for authenticated users
+                        let userStats = {
+                            level: 1,
+                            experience: 0,
+                            coins: 0,
+                            timePlayed: 0,
+                            hayEaten: 0
+                        };
+                        
+                        if (!client.isGuest && client.authenticatedUsername) {
+                            console.log('Loading stats for authenticated user:', client.authenticatedUsername);
+                            userStats = await redisHelpers.getUserStats(client.authenticatedUsername);
+                        }
+                        
+                        // Send updated stats to the user
+                        ws.send(JSON.stringify({
+                            type: 'stats_updated',
+                            stats: userStats
+                        }));
                         
                         // Broadcast username and color update to all clients
                         broadcastToAll({
@@ -364,24 +500,70 @@ wss.on('connection', async (ws) => {
                         // Remove hay from the map
                         hayManager.removeHay(hayId);
                         
-                        // Update player stats
-                        await redisHelpers.incrementPlayerStat(clientId, 'hayEaten');
-                        await redisHelpers.incrementGlobalStat('totalHayEaten');
-                        await redisHelpers.incrementPlayerStat(clientId, 'experience', 5);
+                        const clientData = clients.get(clientId);
+                        let updatedStats = {
+                            level: 1,
+                            experience: 0,
+                            coins: 0,
+                            timePlayed: 0,
+                            hayEaten: 0
+                        };
                         
-                        // Check for level up
-                        const stats = await redisHelpers.getPlayerStats(clientId);
-                        const newLevel = Math.floor(stats.experience / 100) + 1;
-                        if (newLevel > stats.level) {
-                            await redisHelpers.updatePlayerStats(clientId, { level: newLevel });
-                            ws.send(JSON.stringify({
-                                type: 'level_up',
-                                newLevel: newLevel
-                            }));
+                        if (clientData && !clientData.isGuest && clientData.authenticatedUsername) {
+                            // Authenticated user - save to database
+                            await redisHelpers.incrementUserStat(clientData.authenticatedUsername, 'hayEaten');
+                            await redisHelpers.incrementUserStat(clientData.authenticatedUsername, 'experience', 5);
+                            
+                            // Get updated stats (this will auto-calculate and fix level)
+                            const stats = await redisHelpers.getUserStats(clientData.authenticatedUsername);
+                            const oldLevel = stats.level;
+                            const newLevel = Math.floor(stats.experience / 100) + 1;
+                            
+                            // Check for level up
+                            if (newLevel > oldLevel) {
+                                console.log(`Level up for ${clientData.authenticatedUsername}: ${oldLevel} -> ${newLevel}`);
+                                // The level is already updated by getUserStats, but let's make sure
+                                await redisHelpers.updateUserStats(clientData.authenticatedUsername, { level: newLevel });
+                                ws.send(JSON.stringify({
+                                    type: 'level_up',
+                                    newLevel: newLevel
+                                }));
+                            }
+                            
+                            // Get final stats (should have correct level)
+                            updatedStats = await redisHelpers.getUserStats(clientData.authenticatedUsername);
+                        } else {
+                            // Guest user - update in memory only (no persistence)
+                            if (!clientData.guestStats) {
+                                clientData.guestStats = { level: 1, experience: 0, hayEaten: 0 };
+                            }
+                            clientData.guestStats.hayEaten++;
+                            clientData.guestStats.experience += 5;
+                            
+                            // Check for level up
+                            const newLevel = Math.floor(clientData.guestStats.experience / 100) + 1;
+                            if (newLevel > clientData.guestStats.level) {
+                                clientData.guestStats.level = newLevel;
+                                ws.send(JSON.stringify({
+                                    type: 'level_up',
+                                    newLevel: newLevel
+                                }));
+                            }
+                            
+                            updatedStats = {
+                                level: clientData.guestStats.level,
+                                experience: clientData.guestStats.experience,
+                                hayEaten: clientData.guestStats.hayEaten,
+                                coins: 0,
+                                timePlayed: 0
+                            };
+                            clients.set(clientId, clientData);
                         }
                         
+                        // Update global stats
+                        await redisHelpers.incrementGlobalStat('totalHayEaten');
+                        
                         // Send updated stats to the player
-                        const updatedStats = await redisHelpers.getPlayerStats(clientId);
                         ws.send(JSON.stringify({
                             type: 'stats_updated',
                             stats: updatedStats
