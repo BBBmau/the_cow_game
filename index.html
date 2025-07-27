@@ -722,16 +722,31 @@
         });
 
         function checkUsernameAvailability(username) {
+            console.log('Checking username availability for:', username);
+            
+            // Add timeout to the fetch request
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+            
             // Use a simple fetch request instead of WebSocket for username checking
             fetch('/check-username', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ username: username })
+                body: JSON.stringify({ username: username }),
+                signal: controller.signal
             })
-            .then(response => response.json())
+            .then(response => {
+                clearTimeout(timeoutId);
+                console.log('Username check response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Username check response:', data);
                 if (data.available) {
                     usernameStatus.textContent = 'Username available';
                     usernameStatus.style.color = '#4CAF50';
@@ -741,8 +756,13 @@
                 }
             })
             .catch(error => {
+                clearTimeout(timeoutId);
                 console.error('Username check error:', error);
-                usernameStatus.textContent = 'Error checking username';
+                if (error.name === 'AbortError') {
+                    usernameStatus.textContent = 'Check timeout - server may be busy';
+                } else {
+                    usernameStatus.textContent = 'Error checking username';
+                }
                 usernameStatus.style.color = '#ff9800';
             });
         }

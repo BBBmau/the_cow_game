@@ -10,8 +10,66 @@ const path = require('path');
 const { client, redisHelpers, REDIS_KEYS } = require('./redis.js');
 const crypto = require('crypto');
 
+// Track Redis connection status
+let isRedisConnected = false;
+
+// Monitor Redis connection status
+client.on('ready', () => {
+    isRedisConnected = true;
+    console.log('Redis connection established');
+});
+
+client.on('error', (err) => {
+    isRedisConnected = false;
+    console.error('Redis connection error:', err);
+});
+
+client.on('end', () => {
+    isRedisConnected = false;
+    console.log('Redis connection ended');
+});
+
 // Create HTTP server
 const server = http.createServer(async (req, res) => {
+    // Handle CORS preflight requests
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '86400'
+        });
+        res.end();
+        return;
+    }
+
+    // Handle health check endpoint
+    if (req.url === '/health' && req.method === 'GET') {
+        res.writeHead(200, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ 
+            status: 'ok', 
+            timestamp: new Date().toISOString(),
+            redis: isRedisConnected ? 'connected' : 'disconnected'
+        }));
+        return;
+    }
+
+    // Simple test endpoint that doesn't require Redis
+    if (req.url === '/test' && req.method === 'GET') {
+        res.writeHead(200, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({ 
+            message: 'Server is responding',
+            timestamp: new Date().toISOString()
+        }));
+        return;
+    }
+
     // Handle username check endpoint
     if (req.url === '/check-username' && req.method === 'POST') {
         let body = '';
@@ -21,23 +79,50 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const { username } = JSON.parse(body);
-                const existingUser = await redisHelpers.getUser(username);
-                const isAvailable = !existingUser;
+                console.log(`Checking username availability: ${username}`);
                 
-                res.writeHead(200, { 
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'POST',
-                    'Access-Control-Allow-Headers': 'Content-Type'
+                // Add timeout for Redis operations
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Redis timeout')), 5000); // 5 second timeout
                 });
-                res.end(JSON.stringify({
-                    available: isAvailable,
-                    message: isAvailable ? 'Username available' : 'Username already taken'
-                }));
+                
+                try {
+                    const existingUser = await Promise.race([
+                        redisHelpers.getUser(username),
+                        timeoutPromise
+                    ]);
+                    
+                    const isAvailable = !existingUser;
+                    console.log(`Username ${username} availability: ${isAvailable}`);
+                    
+                    res.writeHead(200, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Methods': 'POST',
+                        'Access-Control-Allow-Headers': 'Content-Type'
+                    });
+                    res.end(JSON.stringify({
+                        available: isAvailable,
+                        message: isAvailable ? 'Username available' : 'Username already taken'
+                    }));
+                } catch (redisError) {
+                    console.error('Redis error during username check:', redisError);
+                    // Fallback: assume username is available if Redis is unavailable
+                    res.writeHead(200, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Methods': 'POST',
+                        'Access-Control-Allow-Headers': 'Content-Type'
+                    });
+                    res.end(JSON.stringify({
+                        available: true,
+                        message: 'Username available (Redis unavailable)'
+                    }));
+                }
             } catch (error) {
-                console.error('Username check error:', error);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ available: false, message: 'Error checking username' }));
+                console.error('Username check parsing error:', error);
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ available: false, message: 'Invalid request' }));
             }
         });
         return;
