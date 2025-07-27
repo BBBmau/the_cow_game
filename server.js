@@ -50,6 +50,72 @@ const wss = new WebSocket.Server({ server });
 // Store connected clients and their cow positions
 const clients = new Map();
 
+// Hay management system
+const hayManager = {
+    hayPositions: new Map(), // Track all hay on the map
+    maxHay: 20, // Maximum hay allowed on the map
+    spawnInterval: 2000, // Spawn new hay every 2 seconds
+    spawnTimer: null,
+    
+    // Initialize hay spawning
+    startSpawning() {
+        this.spawnTimer = setInterval(() => {
+            this.spawnHay();
+        }, this.spawnInterval);
+        console.log('Hay spawning system started');
+    },
+    
+    // Stop hay spawning
+    stopSpawning() {
+        if (this.spawnTimer) {
+            clearInterval(this.spawnTimer);
+            this.spawnTimer = null;
+        }
+    },
+    
+    // Spawn new hay if under the limit
+    spawnHay() {
+        if (this.hayPositions.size >= this.maxHay) {
+            return; // Don't spawn if at max
+        }
+        
+        // Generate random position
+        const x = Math.random() * 40 - 20;
+        const z = Math.random() * 40 - 20;
+        const hayId = `hay_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        
+        // Add to tracking
+        this.hayPositions.set(hayId, { x, z, id: hayId });
+        
+        // Broadcast to all clients
+        broadcastToAll({
+            type: 'hay_spawned',
+            hayId: hayId,
+            position: { x, z }
+        });
+        
+        console.log(`Hay spawned: ${hayId} at (${x.toFixed(2)}, ${z.toFixed(2)})`);
+    },
+    
+    // Remove hay when collected
+    removeHay(hayId) {
+        if (this.hayPositions.has(hayId)) {
+            this.hayPositions.delete(hayId);
+            console.log(`Hay removed: ${hayId}`);
+        }
+    },
+    
+    // Get current hay count
+    getHayCount() {
+        return this.hayPositions.size;
+    },
+    
+    // Get all hay positions for new players
+    getAllHay() {
+        return Array.from(this.hayPositions.values());
+    }
+};
+
 // Initialize Redis connection
 async function initializeRedis() {
     try {
@@ -94,7 +160,8 @@ wss.on('connection', async (ws) => {
                 position: data.position,
                 rotation: data.rotation,
                 color: data.color
-            }))
+            })),
+            hay: hayManager.getAllHay() // Send existing hay to new player
         }));
     } catch (error) {
         console.error('Error loading player data from Redis:', error);
@@ -259,6 +326,12 @@ wss.on('connection', async (ws) => {
                 case 'collect_hay':
                     // Handle hay collection
                     try {
+                        const hayId = data.hayId; // Get the hay ID from the client
+                        
+                        // Remove hay from the map
+                        hayManager.removeHay(hayId);
+                        
+                        // Update player stats
                         await redisHelpers.incrementPlayerStat(clientId, 'hayEaten');
                         await redisHelpers.incrementGlobalStat('totalHayEaten');
                         await redisHelpers.incrementPlayerStat(clientId, 'experience', 5);
@@ -288,6 +361,7 @@ wss.on('connection', async (ws) => {
                                 type: 'hay_collected',
                                 playerId: clientId,
                                 username: player.username,
+                                hayId: hayId,
                                 position: data.position
                             });
                         }
@@ -344,6 +418,9 @@ async function startServer() {
         server.listen(PORT, () => {
             console.log(`Server running at http://localhost:${PORT}/`);
             console.log('Redis integration enabled');
+            
+            // Start hay spawning system
+            hayManager.startSpawning();
         });
     } catch (error) {
         console.error('Failed to start server:', error);

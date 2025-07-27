@@ -140,7 +140,7 @@
             Movement: W, A, S, D, Space<br>
             Moo: T<br>
             Exit Moo: Escape<br>
-            Add Hay: H</p>
+            Check Stats: Tab</p>
             <input type="text" id="usernameInput" placeholder="Username" maxlength="20">
             <br>
             <div style="margin: 10px 0;">
@@ -569,31 +569,11 @@
                 return { x: 18, z: 18 };
             }
 
-            // Function to add hay to map
-            function addHayToMap(data) {
-                const position = findRandomClearPosition();
-                const hay = createHay(position.x, position.z);
-                
-                // Send hay position to server if needed
-                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-                    window.ws.send(JSON.stringify({
-                        type: 'hay_added',
-                        position: position
-                    }));
-                }
-            }
-
             // Add some trees
             for (let i = 0; i < 10; i++) {
                 const x = Math.random() * 40 - 20;
                 const z = Math.random() * 40 - 20;
                 createTree(x, z);
-            }
-
-            // Add some initial hay
-            for (let i = 0; i < 5; i++) {
-                const position = findRandomClearPosition();
-                createHay(position.x, position.z);
             }
 
             // Position camera
@@ -607,11 +587,6 @@
             document.addEventListener('keydown', (event) => {
                 if (keys.hasOwnProperty(event.key.toLowerCase())) {
                     keys[event.key.toLowerCase()] = true;
-                }
-                
-                // Add hay with 'H' key for testing
-                if (event.key.toLowerCase() === 'h') {
-                    addHayToMap();
                 }
             });
 
@@ -680,6 +655,15 @@
                                 createOtherPlayer(playerData);
                             }
                         });
+                        
+                        // Create existing hay on the map
+                        if (data.hay) {
+                            data.hay.forEach(hayData => {
+                                console.log('Creating existing hay:', hayData);
+                                createHay(hayData.x, hayData.z, hayData.id);
+                            });
+                        }
+                        
                         addChatMessage('Welcome to the game!', 'system');
                         break;
 
@@ -738,13 +722,25 @@
                         addChatMessage(data);
                         break;
 
-                    case 'add_hay_to_map':
-                        console.log('Adding hay to map:', data);
-                        addHayToMap(data);
+                    case 'hay_spawned':
+                        console.log('Hay spawned:', data);
+                        createHay(data.position.x, data.position.z, data.hayId);
                         break;
 
                     case 'hay_collected':
                         console.log('Hay collected by:', data.username);
+                        // Remove the hay from the scene
+                        if (data.hayId && hayObjects.has(data.hayId)) {
+                            const hayObject = hayObjects.get(data.hayId);
+                            scene.remove(hayObject);
+                            hayObjects.delete(data.hayId);
+                            
+                            // Remove from hay positions
+                            const hayIndex = hayPositions.findIndex(hay => hay.id === data.hayId);
+                            if (hayIndex !== -1) {
+                                hayPositions.splice(hayIndex, 1);
+                            }
+                        }
                         addChatMessage(`${data.username} collected some hay!`, 'system');
                         break;
 
@@ -887,6 +883,7 @@
                 if (window.ws && window.ws.readyState === WebSocket.OPEN) {
                     window.ws.send(JSON.stringify({
                         type: 'collect_hay',
+                        hayId: hayId,
                         position: {
                             x: player.position.x,
                             y: player.position.y,
