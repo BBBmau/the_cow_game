@@ -6,20 +6,17 @@ const redisPort = parseInt(process.env.REDIS_PORT) || 6379;
 
 console.log(`Connecting to Redis at ${redisHost}:${redisPort}`);
 
-const client = redis.createClient({ 
-    host: redisHost, 
-    port: redisPort,
-    retry_strategy: function(options) {
-        if (options.error && options.error.code === 'ECONNREFUSED') {
-            return new Error('The server refused the connection');
+// Redis v4+ uses a different configuration format
+const client = redis.createClient({
+    socket: {
+        host: redisHost,
+        port: redisPort,
+        reconnectStrategy: (retries) => {
+            if (retries > 10) {
+                return new Error('Too many retry attempts');
+            }
+            return Math.min(retries * 100, 3000);
         }
-        if (options.total_retry_time > 1000 * 60 * 60) {
-            return new Error('Retry time exhausted');
-        }
-        if (options.attempt > 10) {
-            return undefined;
-        }
-        return Math.min(options.attempt * 100, 3000);
     }
 });
 
