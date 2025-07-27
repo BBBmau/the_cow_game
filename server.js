@@ -77,10 +77,33 @@ const server = http.createServer(async (req, res) => {
 });
 
 // Create WebSocket server attached to the HTTP server
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ 
+    server,
+    maxConnections: 100, // Limit concurrent connections for stability
+    perMessageDeflate: false, // Disable compression to save memory
+    clientTracking: true // Enable connection tracking
+});
 
 // Store connected clients and their cow positions
 const clients = new Map();
+
+// Add connection monitoring
+let connectionCount = 0;
+const MAX_CONNECTIONS = 100; // Adjust based on your server capacity
+
+// Add periodic cleanup of dead connections
+setInterval(() => {
+    let cleaned = 0;
+    clients.forEach((client, id) => {
+        if (client.ws.readyState !== WebSocket.OPEN) {
+            clients.delete(id);
+            cleaned++;
+        }
+    });
+    if (cleaned > 0) {
+        console.log(`Cleaned up ${cleaned} dead connections. Active: ${clients.size}`);
+    }
+}, 30000); // Check every 30 seconds
 
 // Authentication functions
 function hashPassword(password) {
@@ -200,8 +223,17 @@ async function initializeRedis() {
 }
 
 wss.on('connection', async (ws) => {
+    // Check connection limit
+    if (clients.size >= MAX_CONNECTIONS) {
+        console.log(`Connection rejected: limit of ${MAX_CONNECTIONS} reached`);
+        ws.close(1008, 'Server at capacity');
+        return;
+    }
+
     // Generate a unique ID for this client
     const clientId = Math.random().toString(36).substr(2, 9);
+    connectionCount++;
+    console.log(`New connection: ${clientId} (${clients.size + 1}/${MAX_CONNECTIONS})`);
     
     // Initialize client with default values
     clients.set(clientId, { 
@@ -613,6 +645,16 @@ wss.on('connection', async (ws) => {
         }
     });
 
+    // Handle WebSocket errors
+    ws.on('error', (error) => {
+        console.error(`WebSocket error for client ${clientId}:`, error);
+        // Clean up client if error occurs
+        if (clients.has(clientId)) {
+            clients.delete(clientId);
+            console.log(`Cleaned up client ${clientId} due to error`);
+        }
+    });
+
     ws.on('close', async () => {
         // Get username before removing client
         const leavingClient = clients.get(clientId);
@@ -620,6 +662,7 @@ wss.on('connection', async (ws) => {
         
         // Remove client and notify others
         clients.delete(clientId);
+        console.log(`Connection closed: ${clientId} (${clients.size}/${MAX_CONNECTIONS})`);
         
         // Update global stats when player leaves
         console.log('Player leaving, decrementing totalPlayers');

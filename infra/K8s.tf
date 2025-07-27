@@ -50,12 +50,18 @@ resource "kubernetes_deployment" "game_server" {
           resources {
             limits = {
               cpu    = "750m"
-              memory = "64Mi"
+              memory = "512Mi"  # Increased from 64Mi to support multiple players
             }
             requests = {
               cpu    = "20m"
-              memory = "64Mi"
+              memory = "128Mi"  # Increased from 64Mi for baseline requirements
             }
+          }
+
+          # Add environment variables for better Node.js memory management
+          env {
+            name  = "NODE_OPTIONS"
+            value = "--max-old-space-size=384"  # Set heap size to 384MB (75% of limit)
           }
         }
         
