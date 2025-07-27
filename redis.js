@@ -1,9 +1,14 @@
 const redis = require('redis');
 
 // Create Redis client with connection options
+const redisHost = process.env.REDIS_HOST || '127.0.0.1';
+const redisPort = parseInt(process.env.REDIS_PORT) || 6379;
+
+console.log(`Connecting to Redis at ${redisHost}:${redisPort}`);
+
 const client = redis.createClient({ 
-    host: '127.0.0.1', 
-    port: 6379,
+    host: redisHost, 
+    port: redisPort,
     retry_strategy: function(options) {
         if (options.error && options.error.code === 'ECONNREFUSED') {
             return new Error('The server refused the connection');
