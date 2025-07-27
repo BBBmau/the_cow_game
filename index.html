@@ -34,6 +34,7 @@
             padding: 10px;
             border: 2px solid white;
         }
+
         #chatContainer {
             position: fixed;
             bottom: 20px;
@@ -87,12 +88,14 @@
             align-items: center;
             z-index: 1000;
         }
-        #loginForm {
-            background: white;
-            padding: 2rem;
-            border-radius: 10px;
+        #loginContainer {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 15px;
             text-align: center;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            margin: 0 auto;
         }
         #usernameInput {
             padding: 10px;
@@ -118,24 +121,153 @@
         .hidden {
             display: none !important;
         }
+        
+        #leaderboard {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 350px;
+            max-height: 600px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid white;
+            border-radius: 5px;
+            display: none;
+            z-index: 2000;
+            font-family: monospace;
+            overflow-y: auto;
+        }
+        
+        /* Show cursor when leaderboard is active */
+        body.leaderboard-active {
+            cursor: default !important;
+        }
+        
+        body.leaderboard-active * {
+            cursor: default !important;
+        }
+        
+        /* Force cursor visibility when leaderboard is active */
+        body.leaderboard-active,
+        body.leaderboard-active *,
+        #leaderboard,
+        #leaderboard * {
+            cursor: default !important;
+            pointer-events: auto !important;
+        }
+        
+        #leaderboardContent {
+            padding: 15px;
+        }
+        
+        #leaderboard h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            border-bottom: 1px solid white;
+            padding-bottom: 5px;
+        }
+        
+        .leaderboard-section {
+            margin-bottom: 15px;
+        }
+        
+        .leaderboard-section h2 {
+            color: white;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+            padding-bottom: 3px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            padding: 5px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.7rem;
+            margin-bottom: 2px;
+        }
+        
+        .stat-value {
+            color: white;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        
+        .players-list {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            padding: 4px 6px;
+            margin-bottom: 3px;
+            font-size: 0.8rem;
+        }
+        
+        .player-name {
+            color: white;
+            font-weight: bold;
+        }
+        
+        .player-stats {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.7rem;
+        }
+        
+        .leaderboard-close-hint {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.7rem;
+            margin-top: 10px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
     <div id="loginScreen">
-        <div id="loginForm">
+        <div id="loginContainer">
             <h2>Welcome to The Cow Game!</h2>
-            <p>Enter the name of your cow to start playing:</p>
+            <p>Enter your details to start playing:</p>
             <p>Keys:<br>
             Movement: W, A, S, D, Space<br>
             Moo: T<br>
-            Exit Moo: Escape</p>
+            Exit Moo: Escape<br>
+            View Stats & Leaderboard: Tab<br>
+            Mouse: Click to lock camera • Tab/ESC to show cursor</p>
             <input type="text" id="usernameInput" placeholder="Username" maxlength="20">
+            <br>
+            <input type="password" id="passwordInput" placeholder="Password (optional - for saving progress)" maxlength="50" style="padding: 10px; margin: 10px 0; width: 200px; border: 2px solid #ccc; border-radius: 5px; font-size: 16px;">
             <br>
             <div style="margin: 10px 0;">
                 <label for="cowColor">Choose your cow's color:</label>
                 <input type="color" id="cowColor" value="#ffffff" style="margin-left: 10px;">
             </div>
             <button id="startButton">Start Playing</button>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                <strong>Guest Mode:</strong> Just enter a username (progress won't be saved)<br>
+                <strong>Account Mode:</strong> Enter username + password (progress will be saved)
+            </p>
 
             <p> made with love - mau </p>
         </div>
@@ -147,6 +279,41 @@
         <div id="chatMessages"></div>
         <input type="text" id="chatInput" placeholder="Type a message...">
     </div>
+    
+    <!-- Leaderboard -->
+    <div id="leaderboard">
+        <div id="leaderboardContent">
+            <h1>Stats</h1>
+            
+            <!-- Player Stats Section -->
+            <div class="leaderboard-section">
+                <h2>Your Stats</h2>
+                <div class="stats-grid" id="playerStatsGrid">
+                    <!-- Player stats will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Global Stats Section -->
+            <div class="leaderboard-section">
+                <h2>Global Stats</h2>
+                <div class="stats-grid" id="globalStatsGrid">
+                    <!-- Global stats will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Online Players Section -->
+            <div class="leaderboard-section">
+                <h2>Online Players</h2>
+                <div class="players-list" id="onlinePlayersList">
+                    <!-- Online players will be populated here -->
+                </div>
+            </div>
+            
+            <div class="leaderboard-close-hint">
+                Press Tab to close
+            </div>
+        </div>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script type="module">
@@ -156,10 +323,25 @@
         let cowColor = '#ffffff';
         let gameStarted = false;
         let isChatActive = false;
+
+        let isLeaderboardActive = false;
+        let globalStats = {
+            totalPlayers: 0,
+            totalHayEaten: 0,
+            serverStartTime: Date.now()
+        };
+        let playerStats = {
+            level: 1,
+            experience: 0,
+            hayEaten: 0,
+            timePlayed: 0,
+        };
+        let otherPlayers = new Map();
         
         // Handle login form
         const loginScreen = document.getElementById('loginScreen');
         const usernameInput = document.getElementById('usernameInput');
+        const passwordInput = document.getElementById('passwordInput');
         const cowColorInput = document.getElementById('cowColor');
         const startButton = document.getElementById('startButton');
         const chatInput = document.getElementById('chatInput');
@@ -188,6 +370,10 @@
                 isChatActive = true;
                 chatInput.focus();
                 chatInput.style.background = 'rgba(255, 255, 255, 1)';
+                // Show mouse cursor when chat is active
+                if (document.pointerLockElement === document.body) {
+                    document.exitPointerLock();
+                }
             } else if (e.key === 'Escape' && isChatActive) {
                 isChatActive = false;
                 chatInput.blur();
@@ -228,9 +414,204 @@
             chatInput.style.background = 'rgba(255, 255, 255, 0.9)';
         }
 
+        function handleStatsKeydown(e) {
+            if (e.key === 'Tab') {
+                // Only allow leaderboard if game has started
+                if (!gameStarted) {
+                    // Don't prevent default - allow normal form navigation
+                    return;
+                }
+                
+                // In game - prevent default and toggle leaderboard
+                e.preventDefault();
+                toggleLeaderboard();
+            }
+            
+            // ESC key to unlock mouse
+            if (e.key === 'Escape') {
+                if (document.pointerLockElement === document.body) {
+                    document.exitPointerLock();
+                }
+            }
+        }
+        
+        function toggleLeaderboard() {
+            isLeaderboardActive = !isLeaderboardActive;
+            const leaderboard = document.getElementById('leaderboard');
+            
+            if (isLeaderboardActive) {
+                console.log('=== OPENING LEADERBOARD ===');
+                console.log('Pointer lock element before:', document.pointerLockElement);
+                console.log('Is pointer locked?', !!document.pointerLockElement);
+                
+                leaderboard.style.display = 'block';
+                updateLeaderboard();
+                
+                // Try to exit pointer lock
+                if (document.pointerLockElement) {
+                    console.log('Attempting to exit pointer lock...');
+                    document.exitPointerLock();
+                }
+                
+                // Check status after a short delay
+                setTimeout(() => {
+                    console.log('Pointer lock element after exit:', document.pointerLockElement);
+                    console.log('Is pointer still locked?', !!document.pointerLockElement);
+                    if (document.pointerLockElement) {
+                        console.log('Pointer lock still active, trying again...');
+                        document.exitPointerLock();
+                    }
+                }, 50);
+                
+                document.body.style.cursor = 'default';
+                document.body.style.pointerEvents = 'auto';
+                leaderboard.style.pointerEvents = 'auto';
+                
+                // Add CSS class to show cursor
+                document.body.classList.add('leaderboard-active');
+                
+                // Prevent any new pointer lock attempts
+                document.addEventListener('click', preventPointerLock, true);
+                
+                console.log('Leaderboard opened, cursor should be visible');
+                
+            } else {
+                console.log('=== CLOSING LEADERBOARD ===');
+                leaderboard.style.display = 'none';
+                
+                // Re-enable normal pointer behavior
+                document.body.style.pointerEvents = 'auto';
+                document.body.classList.remove('leaderboard-active');
+                
+                // Remove pointer lock prevention
+                document.removeEventListener('click', preventPointerLock, true);
+                
+                // Automatically lock mouse back in for camera control
+                setTimeout(() => {
+                    if (!document.pointerLockElement) {
+                        console.log('Re-locking mouse for camera control...');
+                        document.body.requestPointerLock();
+                    }
+                }, 100);
+            }
+        }
+        
+        function preventPointerLock(event) {
+            if (isLeaderboardActive) {
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+        }
+        
+        function closeLeaderboard() {
+            isLeaderboardActive = false;
+            document.getElementById('leaderboard').style.display = 'none';
+        }
+        
+        function updateLeaderboard() {
+            updatePlayerStatsSection();
+            updateGlobalStatsSection();
+            updateOnlinePlayersSection();
+        }
+        
+        function updatePlayerStatsSection() {
+            const playerStatsGrid = document.getElementById('playerStatsGrid');
+            const expToNextLevel = 100 - (playerStats.experience % 100);
+            console.log('Updating player stats section with:', playerStats);
+            
+            playerStatsGrid.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-label">Level</div>
+                    <div class="stat-value">${playerStats.level}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Experience</div>
+                    <div class="stat-value">${playerStats.experience}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Next Level</div>
+                    <div class="stat-value">${expToNextLevel} XP</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Hay Eaten</div>
+                    <div class="stat-value">${playerStats.hayEaten}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Time Played</div>
+                    <div class="stat-value">${Math.floor(playerStats.timePlayed / 60)}m ${playerStats.timePlayed % 60}s</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Coins</div>
+                    <div class="stat-value">${playerStats.coins || 0}</div>
+                </div>
+            `;
+        }
+        
+        function updateGlobalStatsSection() {
+            const globalStatsGrid = document.getElementById('globalStatsGrid');
+            // Use the actual server start time from global stats, not the client's time
+            const serverUptime = globalStats.serverStartTime ? 
+                Math.floor((Date.now() - globalStats.serverStartTime) / 1000) : 0;
+            console.log('Updating global stats section with:', globalStats, 'Server uptime:', serverUptime);
+            
+            globalStatsGrid.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-label">Total Players</div>
+                    <div class="stat-value">${globalStats.totalPlayers}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Total Hay Eaten</div>
+                    <div class="stat-value">${globalStats.totalHayEaten}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Server Uptime</div>
+                    <div class="stat-value">${Math.floor(serverUptime / 60)}m ${serverUptime % 60}s</div>
+                </div>
+            `;
+        }
+        
+        function updateOnlinePlayersSection() {
+            const onlinePlayersList = document.getElementById('onlinePlayersList');
+            const players = Array.from(otherPlayers.values());
+            
+            // Add current player to the list
+            players.unshift({
+                username: username,
+                level: playerStats.level,
+                hayEaten: playerStats.hayEaten,
+                isCurrentPlayer: true
+            });
+            
+            // Sort by level (highest first), then by hay eaten
+            players.sort((a, b) => {
+                const aLevel = a.level || 1;
+                const bLevel = b.level || 1;
+                const aHay = a.hayEaten || 0;
+                const bHay = b.hayEaten || 0;
+                
+                if (bLevel !== aLevel) {
+                    return bLevel - aLevel;
+                }
+                return bHay - aHay;
+            });
+            
+            onlinePlayersList.innerHTML = players.map((player, index) => `
+                <div class="player-item">
+                    <div class="player-name">
+                        ${index + 1}. ${player.username} ${player.isCurrentPlayer ? '(You)' : ''}
+                    </div>
+                    <div class="player-stats">
+                        Level ${player.level || 1} / ${player.hayEaten || 0} hay
+                    </div>
+                </div>
+            `).join('');
+        }
+
         // Add event listeners for chat
         document.addEventListener('keydown', handleChatKeydown);
         document.addEventListener('keydown', handleGameKeydown);
+        document.addEventListener('keydown', handleStatsKeydown);
         chatInput.addEventListener('keypress', handleChatKeypress);
         chatInput.addEventListener('blur', handleChatBlur);
 
@@ -239,22 +620,150 @@
             cowColor = e.target.value;
         });
 
-        startButton.addEventListener('click', () => {
+        startButton.addEventListener('click', async () => {
             username = usernameInput.value.trim();
-            if (username) {
-                loginScreen.classList.add('hidden');
-                gameStarted = true;
-                initGame();
-            } else {
+            const password = passwordInput.value.trim();
+            
+            if (!username) {
                 alert('Please enter a username!');
+                return;
+            }
+
+            // Check if username is taken (for guest users)
+            if (!password && usernameStatus.textContent.includes('already taken')) {
+                alert('This username is already registered. Please choose a different name or enter your password.');
+                return;
+            }
+            
+            // Disable button during authentication/connection
+            startButton.disabled = true;
+            startButton.textContent = password ? 'Authenticating...' : 'Connecting...';
+            
+            try {
+                if (password) {
+                    // Account mode - authenticate with server
+                    const authResult = await authenticateUser(username, password);
+                    if (authResult.success) {
+                        cowColor = cowColorInput.value;
+                        loginScreen.classList.add('hidden');
+                        gameStarted = true;
+                        initGame();
+                    } else {
+                        alert(authResult.message || 'Authentication failed!');
+                    }
+                } else {
+                    // Guest mode - skip authentication
+                    authInfo = {
+                        isAuthenticated: false,
+                        username: null,
+                        password: null
+                    };
+                    cowColor = cowColorInput.value;
+                    loginScreen.classList.add('hidden');
+                    gameStarted = true;
+                    initGame();
+                }
+            } catch (error) {
+                alert('Connection error. Please try again.');
+                console.error('Auth error:', error);
+            } finally {
+                startButton.disabled = false;
+                startButton.textContent = 'Start Playing';
             }
         });
 
+        // Handle Enter key on both username and password inputs
         usernameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                passwordInput.focus();
+            }
+        });
+        
+        passwordInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 startButton.click();
             }
         });
+
+        // Real-time username availability checker
+        let usernameCheckTimeout;
+        const usernameStatus = document.createElement('div');
+        usernameStatus.id = 'usernameStatus';
+        usernameStatus.style.cssText = `
+            margin-top: 5px;
+            font-size: 12px;
+            min-height: 16px;
+        `;
+        usernameInput.parentNode.insertBefore(usernameStatus, usernameInput.nextSibling);
+
+        usernameInput.addEventListener('input', (e) => {
+            const username = e.target.value.trim();
+            
+            // Clear previous timeout
+            if (usernameCheckTimeout) {
+                clearTimeout(usernameCheckTimeout);
+            }
+            
+            // Clear status if username is empty
+            if (!username) {
+                usernameStatus.textContent = '';
+                usernameStatus.style.color = '';
+                return;
+            }
+            
+            // Show checking status
+            usernameStatus.textContent = 'Checking availability...';
+            usernameStatus.style.color = '#888';
+            
+            // Debounce the check
+            usernameCheckTimeout = setTimeout(() => {
+                checkUsernameAvailability(username);
+            }, 500);
+        });
+
+        function checkUsernameAvailability(username) {
+            // Use a simple fetch request instead of WebSocket for username checking
+            fetch('/check-username', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: username })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.available) {
+                    usernameStatus.textContent = 'Username available';
+                    usernameStatus.style.color = '#4CAF50';
+                } else {
+                    usernameStatus.textContent = 'Username already taken';
+                    usernameStatus.style.color = '#f44336';
+                }
+            })
+            .catch(error => {
+                console.error('Username check error:', error);
+                usernameStatus.textContent = 'Error checking username';
+                usernameStatus.style.color = '#ff9800';
+            });
+        }
+        
+        // Store authentication info for use in initGame
+        let authInfo = {
+            isAuthenticated: false,
+            username: null,
+            password: null
+        };
+        
+        // Authentication function - now just validates and stores info
+        async function authenticateUser(username, password) {
+            // For now, just store the auth info and validate in initGame
+            authInfo = {
+                isAuthenticated: true,
+                username: username,
+                password: password
+            };
+            return { success: true, message: 'Ready to connect' };
+        }
 
         function initGame() {
             // WebSocket connection
@@ -262,7 +771,6 @@
             const wsHost = window.location.host;
             window.ws = new WebSocket(`${wsProtocol}://${wsHost}`);
             let clientId = null;
-            const otherPlayers = new Map();
 
             // Set up scene, camera, and renderer
             const scene = new THREE.Scene();
@@ -409,9 +917,18 @@
             debugDirection.position.y = 0.1;
             debugScene.add(debugDirection);
 
+            // Track tree and hay positions to avoid intersections
+            const treePositions = [];
+            const hayPositions = [];
+            const hayObjects = new Map(); // Track hay objects for collision detection
+
             // Add debug trees
             const debugTrees = new THREE.Group();
             debugScene.add(debugTrees);
+
+            // Add debug hay
+            const debugHay = new THREE.Group();
+            debugScene.add(debugHay);
 
             // Function to create a tree
             function createTree(x, z) {
@@ -444,6 +961,97 @@
                 debugTree.rotation.x = -Math.PI / 2;
                 debugTree.position.set(x, 0.1, z);  // Slightly above ground for visibility
                 debugTrees.add(debugTree);
+
+                // Track tree position
+                treePositions.push({ x, z });
+            }
+
+            // Function to create hay
+            function createHay(x, z, hayId = null) {
+                const hayGroup = new THREE.Group();
+                const id = hayId || `hay_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+                // Create hay bale using multiple cylinders for a realistic look
+                const hayBaleGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 8);
+                const hayMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xDAA520,  // Goldenrod color for hay
+                    roughness: 0.9,
+                    metalness: 0.1
+                });
+                
+                // Main hay bale
+                const hayBale = new THREE.Mesh(hayBaleGeometry, hayMaterial);
+                hayBale.position.y = 0.15;  // Half the height
+                hayBale.castShadow = true;
+                hayBale.receiveShadow = true;
+                hayGroup.add(hayBale);
+
+                // Add some hay strands on top for texture
+                for (let i = 0; i < 8; i++) {
+                    const strandGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.2, 4);
+                    const strand = new THREE.Mesh(strandGeometry, hayMaterial);
+                    strand.position.y = 0.4;
+                    strand.rotation.x = Math.random() * 0.3 - 0.15;
+                    strand.rotation.z = Math.random() * 0.3 - 0.15;
+                    strand.position.x = (Math.random() - 0.5) * 0.6;
+                    strand.position.z = (Math.random() - 0.5) * 0.6;
+                    hayGroup.add(strand);
+                }
+
+                hayGroup.position.set(x, 0, z);
+                hayGroup.userData = { id: id, type: 'hay' };
+                scene.add(hayGroup);
+
+                // Add debug hay indicator
+                const debugHayIndicator = new THREE.Mesh(
+                    new THREE.CircleGeometry(0.25, 32),
+                    new THREE.MeshBasicMaterial({ color: 0xDAA520 })
+                );
+                debugHayIndicator.rotation.x = -Math.PI / 2;
+                debugHayIndicator.position.set(x, 0.05, z);
+                debugHay.add(debugHayIndicator);
+
+                // Track hay position and object
+                hayPositions.push({ x, z, id: id });
+                hayObjects.set(id, hayGroup);
+
+                return hayGroup;
+            }
+
+            // Function to check if a position is clear of obstacles
+            function isPositionClear(x, z, radius = 1.0) {
+                // Check against trees
+                for (const tree of treePositions) {
+                    const distance = Math.sqrt((x - tree.x) ** 2 + (z - tree.z) ** 2);
+                    if (distance < radius) return false;
+                }
+                
+                // Check against existing hay
+                for (const hay of hayPositions) {
+                    const distance = Math.sqrt((x - hay.x) ** 2 + (z - hay.z) ** 2);
+                    if (distance < radius) return false;
+                }
+                
+                return true;
+            }
+
+            // Function to find a random clear position
+            function findRandomClearPosition() {
+                let attempts = 0;
+                const maxAttempts = 100;
+                
+                while (attempts < maxAttempts) {
+                    const x = Math.random() * 40 - 20;
+                    const z = Math.random() * 40 - 20;
+                    
+                    if (isPositionClear(x, z, 1.5)) {
+                        return { x, z };
+                    }
+                    attempts++;
+                }
+                
+                // If no clear position found, return a position at the edge
+                return { x: 18, z: 18 };
             }
 
             // Add some trees
@@ -473,9 +1081,9 @@
                 }
             });
 
-            // Mouse movement for looking around
+            // Mouse movement for looking around (when pointer is locked)
             document.addEventListener('mousemove', (event) => {
-                if (document.pointerLockElement === document.body) {
+                if (document.pointerLockElement === document.body && !isLeaderboardActive) {
                     const movementX = event.movementX || 0;
                     const movementY = event.movementY || 0;
                     
@@ -493,22 +1101,53 @@
                 }
             });
 
-            // Click to lock pointer
-            document.addEventListener('click', () => {
-                document.body.requestPointerLock();
+            // Click to lock pointer for mouse look (only when not already locked)
+            document.addEventListener('click', (event) => {
+                // Don't lock pointer if clicking on UI elements or if leaderboard is open
+                if (event.target.closest('#leaderboard, #chatContainer, #players, #coordinates, #debugView') || isLeaderboardActive) {
+                    return;
+                }
+                
+                // Only lock if not already locked and leaderboard is not active
+                if (!document.pointerLockElement && !isLeaderboardActive) {
+                    document.body.requestPointerLock();
+                }
+            });
+            
+            // Add visual indicator for mouse lock state
+            document.addEventListener('pointerlockchange', () => {
+                console.log('=== POINTER LOCK CHANGE ===');
+                console.log('New pointer lock element:', document.pointerLockElement);
+                console.log('Is leaderboard active?', isLeaderboardActive);
+                
+                if (document.pointerLockElement === document.body) {
+                    console.log('Mouse locked - you can look around');
+                } else {
+                    console.log('Mouse unlocked - click to lock for mouse look');
+                }
             });
 
             // WebSocket event handlers
             window.ws.onopen = () => {
                 console.log('Connected to server');
-                // Send username and color to server
-                const usernameMessage = {
-                    type: 'set_username',
-                    username: username,
-                    color: cowColor
-                };
-                console.log('Sending username:', usernameMessage);
-                window.ws.send(JSON.stringify(usernameMessage));
+                
+                if (authInfo.isAuthenticated) {
+                    // Send authentication first for account mode
+                    console.log('Sending authentication for:', authInfo.username);
+                    window.ws.send(JSON.stringify({
+                        type: 'authenticate',
+                        username: authInfo.username,
+                        password: authInfo.password
+                    }));
+                } else {
+                    // Guest mode - send username directly
+                    console.log('Guest mode - sending username:', username);
+                    window.ws.send(JSON.stringify({
+                        type: 'set_username',
+                        username: username,
+                        color: cowColor
+                    }));
+                }
             };
 
             window.ws.onmessage = (event) => {
@@ -516,16 +1155,71 @@
                 console.log('Received message:', data);
                 
                 switch (data.type) {
+                    case 'auth_result':
+                        console.log('Authentication result:', data);
+                        if (data.success) {
+                            // Authentication successful, now send username and color
+                            console.log('Auth successful, sending username and color');
+                            window.ws.send(JSON.stringify({
+                                type: 'set_username',
+                                username: authInfo.username,
+                                color: cowColor
+                            }));
+                        } else {
+                            // Authentication failed
+                            alert(data.message || 'Authentication failed!');
+                            // Redirect back to login
+                            window.location.reload();
+                        }
+                        break;
+
+                    case 'username_error':
+                        console.log('Username error:', data.message);
+                        alert(data.message);
+                        // Redirect back to login to choose a different username
+                        window.location.reload();
+                        break;
+                        
                     case 'init':
                         clientId = data.id;
                         console.log('Initialized with ID:', clientId);
+                        
+                        // Update player stats if provided
+                        if (data.stats) {
+                            console.log('Received stats from server:', data.stats);
+                            playerStats = { ...playerStats, ...data.stats };
+                            console.log('Updated playerStats:', playerStats);
+                        } else {
+                            console.log('No stats received from server');
+                        }
+                        
+                        // Update global stats
+                        if (data.globalStats) {
+                            globalStats = { ...globalStats, ...data.globalStats };
+                            console.log('Updated globalStats:', globalStats);
+                        }
+                        
+                        // Update leaderboard if it's open
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
+                        }
+                        
                         // Create other players that are already in the game
                         data.players.forEach(playerData => {
                             if (playerData.id !== clientId) {
-                                console.log('Creating other player:', playerData);
+                                console.log('Creating other player with stats:', playerData);
                                 createOtherPlayer(playerData);
                             }
                         });
+                        
+                        // Create existing hay on the map
+                        if (data.hay) {
+                            data.hay.forEach(hayData => {
+                                console.log('Creating existing hay:', hayData);
+                                createHay(hayData.x, hayData.z, hayData.id);
+                            });
+                        }
+                        
                         addChatMessage('Welcome to the game!', 'system');
                         break;
 
@@ -533,6 +1227,9 @@
                         console.log('Player joined:', data);
                         createOtherPlayer(data);
                         addChatMessage(`${data.username} joined the game`, 'system');
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
+                        }
                         break;
 
                     case 'color_update':
@@ -572,6 +1269,9 @@
                         console.log('Player left:', data);
                         removeOtherPlayer(data.id);
                         addChatMessage(`${data.username} left the game`, 'system');
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
+                        }
                         break;
 
                     case 'username_update':
@@ -582,6 +1282,66 @@
 
                     case 'chat_message':
                         addChatMessage(data);
+                        break;
+
+                    case 'hay_spawned':
+                        console.log('Hay spawned:', data);
+                        createHay(data.position.x, data.position.z, data.hayId);
+                        break;
+
+                    case 'hay_collected':
+                        console.log('Hay collected by:', data.username);
+                        // Remove the hay from the scene
+                        if (data.hayId && hayObjects.has(data.hayId)) {
+                            const hayObject = hayObjects.get(data.hayId);
+                            scene.remove(hayObject);
+                            hayObjects.delete(data.hayId);
+                            
+                            // Remove from hay positions
+                            const hayIndex = hayPositions.findIndex(hay => hay.id === data.hayId);
+                            if (hayIndex !== -1) {
+                                hayPositions.splice(hayIndex, 1);
+                            }
+                        }
+                        addChatMessage(`${data.username} collected some hay!`, 'system');
+                        break;
+
+                    case 'stats_updated':
+                        console.log('Stats updated:', data.stats);
+                        playerStats = { ...playerStats, ...data.stats };
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
+                        }
+                        break;
+
+                    case 'level_up':
+                        console.log('Level up! New level:', data.newLevel);
+                        addChatMessage(`Congratulations! You reached level ${data.newLevel}!`, 'system');
+                        break;
+                        
+                    case 'global_stats_updated':
+                        console.log('Global stats updated:', data.globalStats);
+                        globalStats = { ...globalStats, ...data.globalStats };
+                        if (isLeaderboardActive) {
+                            updateLeaderboard();
+                        }
+                        break;
+                        
+                    case 'player_stats_updated':
+                        console.log('Player stats updated:', data);
+                        // Update the other player's stats in our local map
+                        if (otherPlayers.has(data.playerId)) {
+                            const playerData = otherPlayers.get(data.playerId);
+                            playerData.level = data.stats.level;
+                            playerData.hayEaten = data.stats.hayEaten;
+                            playerData.experience = data.stats.experience;
+                            otherPlayers.set(data.playerId, playerData);
+                            
+                            // Update leaderboard if it's open
+                            if (isLeaderboardActive) {
+                                updateLeaderboard();
+                            }
+                        }
                         break;
                 }
             };
@@ -603,7 +1363,10 @@
                 otherPlayers.set(data.id, {
                     cow: otherPlayer,
                     username: data.username || 'Anonymous',
-                    color: data.color || '#ffffff'
+                    color: data.color || '#ffffff',
+                    level: data.stats?.level || 1,
+                    hayEaten: data.stats?.hayEaten || 0,
+                    experience: data.stats?.experience || 0
                 });
                 updatePlayersList();
             }
@@ -639,6 +1402,8 @@
                 }
             }
 
+
+
             function updatePlayersList() {
                 const playersDiv = document.getElementById('players');
                 playersDiv.innerHTML = `
@@ -649,12 +1414,81 @@
                 `;
             }
 
+
+
+            // Function to check collision with hay
+            function checkHayCollision() {
+                const playerPosition = player.position;
+                const collisionRadius = 1.0; // Distance to trigger hay collection
+                
+                for (const [hayId, hayObject] of hayObjects) {
+                    const hayPosition = hayObject.position;
+                    const distance = Math.sqrt(
+                        Math.pow(playerPosition.x - hayPosition.x, 2) + 
+                        Math.pow(playerPosition.z - hayPosition.z, 2)
+                    );
+                    
+                    if (distance < collisionRadius) {
+                        // Collect the hay
+                        collectHay(hayId, hayObject);
+                        break; // Only collect one hay at a time
+                    }
+                }
+            }
+
+            // Function to collect hay
+            function collectHay(hayId, hayObject) {
+                // Remove hay from scene
+                scene.remove(hayObject);
+                hayObjects.delete(hayId);
+                
+                // Remove from hay positions
+                const hayIndex = hayPositions.findIndex(hay => hay.id === hayId);
+                if (hayIndex !== -1) {
+                    hayPositions.splice(hayIndex, 1);
+                }
+                
+                // Send collection message to server
+                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({
+                        type: 'collect_hay',
+                        hayId: hayId,
+                        position: {
+                            x: player.position.x,
+                            y: player.position.y,
+                            z: player.position.z
+                        }
+                    }));
+                }
+            }
+
+            // Time tracking for stats
+            let gameStartTime = Date.now();
+            let lastTimeUpdate = 0;
+            let lastLeaderboardUpdate = 0;
+
             // Animation loop
             function animate() {
                 requestAnimationFrame(animate);
 
                 // Update cow movement
                 updateCowMovement(player, keys, moveSpeed, camera);
+
+                // Check for hay collisions
+                checkHayCollision();
+
+                // Update time played every second
+                const currentTime = Date.now();
+                if (currentTime - lastTimeUpdate >= 1000) {
+                    playerStats.timePlayed = Math.floor((currentTime - gameStartTime) / 1000);
+                    lastTimeUpdate = currentTime;
+                }
+                
+                // Update leaderboard every 5 seconds if open
+                if (isLeaderboardActive && currentTime - lastLeaderboardUpdate >= 5000) {
+                    updateLeaderboard();
+                    lastLeaderboardUpdate = currentTime;
+                }
 
                 // Send position update to server
                 if (window.ws.readyState === WebSocket.OPEN) {
@@ -715,44 +1549,7 @@
             animate();
         }
 
-        // Handle login form submission
-        const loginForm = document.getElementById('loginForm');
-        loginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const username = usernameInput.value.trim() || 'Anonymous';
-            const color = cowColorInput.value;
-            console.log('Setting username:', username, 'with color:', color);
-            
-            // Send username and color to server
-            window.ws.send(JSON.stringify({
-                type: 'set_username',
-                username: username,
-                color: color
-            }));
-            
-            // Update local username and color
-            username = username;
-            cowColor = color;
-            
-            // Create player character with selected color
-            if (player) {
-                scene.remove(player);
-            }
-            player = createCow(color);
-            player.position.set(0, 0.5, 0);
-            player.castShadow = true;
-            scene.add(player);
-            
-            // Create name label
-            const nameLabel = createNameLabel(username);
-            player.add(nameLabel);
-            
-            // Hide login screen
-            loginScreen.style.display = 'none';
-            
-            // Start game loop
-            animate();
-        });
+
     </script>
 </body>
 </html> 
