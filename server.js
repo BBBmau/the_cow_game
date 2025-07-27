@@ -223,17 +223,20 @@ async function initializeRedis() {
 }
 
 wss.on('connection', async (ws) => {
-    // Check connection limit
-    if (clients.size >= MAX_CONNECTIONS) {
-        console.log(`Connection rejected: limit of ${MAX_CONNECTIONS} reached`);
-        ws.close(1008, 'Server at capacity');
-        return;
-    }
+    // Temporarily disable connection limit for debugging
+    // if (clients.size >= MAX_CONNECTIONS) {
+    //     console.log(`Connection rejected: limit of ${MAX_CONNECTIONS} reached`);
+    //     ws.close(1008, 'Server at capacity');
+    //     return;
+    // }
 
     // Generate a unique ID for this client
     const clientId = Math.random().toString(36).substr(2, 9);
     connectionCount++;
-    console.log(`New connection: ${clientId} (${clients.size + 1}/${MAX_CONNECTIONS})`);
+    console.log(`=== NEW CONNECTION ===`);
+    console.log(`Client ID: ${clientId}`);
+    console.log(`Total connections: ${clients.size + 1}`);
+    console.log(`WebSocket ready state: ${ws.readyState}`);
     
     // Initialize client with default values
     clients.set(clientId, { 
@@ -354,7 +357,9 @@ wss.on('connection', async (ws) => {
     ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
-            console.log('Received message:', data);
+            console.log(`=== MESSAGE FROM ${clientId} ===`);
+            console.log('Message type:', data.type);
+            console.log('Full message:', data);
 
             switch (data.type) {
                 case 'authenticate':
