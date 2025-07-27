@@ -169,7 +169,14 @@ const redisHelpers = {
     async incrementGlobalStat(statName, amount = 1) {
         const currentStats = await this.get(REDIS_KEYS.GLOBAL_STATS) || {};
         const currentValue = currentStats[statName] || 0;
-        const updatedStats = { ...currentStats, [statName]: currentValue + amount };
+        let newValue = currentValue + amount;
+        
+        // Prevent negative values for certain stats
+        if (statName === 'totalPlayers' && newValue < 0) {
+            newValue = 0;
+        }
+        
+        const updatedStats = { ...currentStats, [statName]: newValue };
         await this.set(REDIS_KEYS.GLOBAL_STATS, updatedStats, 0); // No expiration
         return updatedStats;
     }

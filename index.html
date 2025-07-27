@@ -349,7 +349,6 @@
         let globalStats = {
             totalPlayers: 0,
             totalHayEaten: 0,
-            totalTimePlayed: 0,
             serverStartTime: Date.now()
         };
         let playerStats = {
@@ -357,7 +356,6 @@
             experience: 0,
             hayEaten: 0,
             timePlayed: 0,
-            coins: 0
         };
         
         // Handle login form
@@ -511,8 +509,10 @@
         
         function updateGlobalStatsSection() {
             const globalStatsGrid = document.getElementById('globalStatsGrid');
-            const serverUptime = Math.floor((Date.now() - globalStats.serverStartTime) / 1000);
-            console.log('Updating global stats section with:', globalStats);
+            // Use the actual server start time from global stats, not the client's time
+            const serverUptime = globalStats.serverStartTime ? 
+                Math.floor((Date.now() - globalStats.serverStartTime) / 1000) : 0;
+            console.log('Updating global stats section with:', globalStats, 'Server uptime:', serverUptime);
             
             globalStatsGrid.innerHTML = `
                 <div class="stat-item">
@@ -522,10 +522,6 @@
                 <div class="stat-item">
                     <div class="stat-label">Total Hay Eaten</div>
                     <div class="stat-value">${globalStats.totalHayEaten}</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Total Time Played</div>
-                    <div class="stat-value">${Math.floor(globalStats.totalTimePlayed / 60)}m ${globalStats.totalTimePlayed % 60}s</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Server Uptime</div>

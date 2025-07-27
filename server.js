@@ -126,7 +126,12 @@ async function initializeRedis() {
         // Initialize global stats if they don't exist
         const globalStats = await redisHelpers.getGlobalStats();
         if (!globalStats.serverStartTime) {
-            await redisHelpers.updateGlobalStats({ serverStartTime: Date.now() });
+            await redisHelpers.updateGlobalStats({ 
+                serverStartTime: Date.now(),
+                totalPlayers: 0,
+                totalHayEaten: 0,
+                totalTimePlayed: 0
+            });
         }
     } catch (error) {
         console.error('Failed to connect to Redis:', error);
@@ -184,6 +189,10 @@ wss.on('connection', async (ws) => {
         }));
     }
 
+    // Update global stats when player joins
+    console.log('Player joining, incrementing totalPlayers');
+    await redisHelpers.incrementGlobalStat('totalPlayers');
+    
     // Broadcast new player to all other clients
     broadcastToOthers(clientId, {
         type: 'player_joined',
@@ -192,6 +201,13 @@ wss.on('connection', async (ws) => {
         position: clients.get(clientId).position,
         rotation: clients.get(clientId).rotation,
         color: clients.get(clientId).color
+    });
+    
+    // Broadcast updated global stats to all clients
+    const updatedGlobalStats = await redisHelpers.getGlobalStats();
+    broadcastToAll({
+        type: 'global_stats_updated',
+        globalStats: updatedGlobalStats
     });
 
     // Send existing players' colors to the new player
@@ -387,13 +403,24 @@ wss.on('connection', async (ws) => {
         }
     });
 
-    ws.on('close', () => {
+    ws.on('close', async () => {
         // Get username before removing client
         const leavingClient = clients.get(clientId);
         const leavingUsername = leavingClient ? leavingClient.username : 'Anonymous';
         
         // Remove client and notify others
         clients.delete(clientId);
+        
+        // Update global stats when player leaves
+        console.log('Player leaving, decrementing totalPlayers');
+        await redisHelpers.incrementGlobalStat('totalPlayers', -1);
+        
+        // Broadcast updated global stats to all clients
+        const updatedGlobalStats = await redisHelpers.getGlobalStats();
+        broadcastToAll({
+            type: 'global_stats_updated',
+            globalStats: updatedGlobalStats
+        });
         
         broadcastToAll({
             type: 'player_left',
