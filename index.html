@@ -416,6 +416,13 @@
 
         function handleStatsKeydown(e) {
             if (e.key === 'Tab') {
+                // Only allow leaderboard if game has started
+                if (!gameStarted) {
+                    // Don't prevent default - allow normal form navigation
+                    return;
+                }
+                
+                // In game - prevent default and toggle leaderboard
                 e.preventDefault();
                 toggleLeaderboard();
             }
@@ -726,10 +733,10 @@
             .then(response => response.json())
             .then(data => {
                 if (data.available) {
-                    usernameStatus.textContent = '✓ Username available';
+                    usernameStatus.textContent = 'Username available';
                     usernameStatus.style.color = '#4CAF50';
                 } else {
-                    usernameStatus.textContent = '✗ Username already taken';
+                    usernameStatus.textContent = 'Username already taken';
                     usernameStatus.style.color = '#f44336';
                 }
             })
