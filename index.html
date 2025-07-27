@@ -122,81 +122,92 @@
         
         #leaderboard {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.95);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 350px;
+            max-height: 600px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid white;
+            border-radius: 5px;
             display: none;
-            justify-content: center;
-            align-items: center;
             z-index: 2000;
-            font-family: 'Arial', sans-serif;
+            font-family: monospace;
+            overflow-y: auto;
+        }
+        
+        /* Show cursor when leaderboard is active */
+        body.leaderboard-active {
+            cursor: default !important;
+        }
+        
+        body.leaderboard-active * {
+            cursor: default !important;
+        }
+        
+        /* Force cursor visibility when leaderboard is active */
+        body.leaderboard-active,
+        body.leaderboard-active *,
+        #leaderboard,
+        #leaderboard * {
+            cursor: default !important;
+            pointer-events: auto !important;
         }
         
         #leaderboardContent {
-            background: linear-gradient(135deg, #2c3e50, #34495e);
-            border: 3px solid #3498db;
-            border-radius: 15px;
-            padding: 2rem;
-            max-width: 90%;
-            max-height: 90%;
-            overflow-y: auto;
-            box-shadow: 0 0 30px rgba(52, 152, 219, 0.5);
+            padding: 15px;
         }
         
         #leaderboard h1 {
-            color: #ecf0f1;
+            color: white;
             text-align: center;
-            margin-bottom: 2rem;
-            font-size: 2.5rem;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            border-bottom: 1px solid white;
+            padding-bottom: 5px;
         }
         
         .leaderboard-section {
-            margin-bottom: 2rem;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            padding: 1.5rem;
+            margin-bottom: 15px;
         }
         
         .leaderboard-section h2 {
-            color: #3498db;
-            margin-bottom: 1rem;
-            font-size: 1.5rem;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 0.5rem;
+            color: white;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+            padding-bottom: 3px;
         }
         
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1rem;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
         }
         
         .stat-item {
-            background: rgba(52, 152, 219, 0.2);
-            border: 1px solid #3498db;
-            border-radius: 8px;
-            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            padding: 5px;
             text-align: center;
         }
         
         .stat-label {
-            color: #bdc3c7;
-            font-size: 0.9rem;
-            margin-bottom: 0.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.7rem;
+            margin-bottom: 2px;
         }
         
         .stat-value {
-            color: #ecf0f1;
-            font-size: 1.5rem;
+            color: white;
+            font-size: 0.9rem;
             font-weight: bold;
         }
         
         .players-list {
-            max-height: 300px;
+            max-height: 150px;
             overflow-y: auto;
         }
         
@@ -204,47 +215,29 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid #34495e;
-            border-radius: 5px;
-            padding: 0.8rem;
-            margin-bottom: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            padding: 4px 6px;
+            margin-bottom: 3px;
+            font-size: 0.8rem;
         }
         
         .player-name {
-            color: #ecf0f1;
+            color: white;
             font-weight: bold;
         }
         
         .player-stats {
-            color: #bdc3c7;
-            font-size: 0.9rem;
-        }
-        
-        .close-button {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            font-size: 1.2rem;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        
-        .close-button:hover {
-            background: #c0392b;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.7rem;
         }
         
         .leaderboard-close-hint {
             text-align: center;
-            color: #bdc3c7;
-            font-size: 0.9rem;
-            margin-top: 1rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.7rem;
+            margin-top: 10px;
             font-style: italic;
         }
         
@@ -304,7 +297,7 @@
     <!-- Leaderboard -->
     <div id="leaderboard">
         <div id="leaderboardContent">
-            <h1>🏆 Leaderboard</h1>
+            <h1>📊 Stats</h1>
             
             <!-- Player Stats Section -->
             <div class="leaderboard-section">
@@ -331,7 +324,7 @@
             </div>
             
             <div class="leaderboard-close-hint">
-                Press Tab or click × to close
+                Press Tab to close
             </div>
         </div>
     </div>
@@ -357,6 +350,7 @@
             hayEaten: 0,
             timePlayed: 0,
         };
+        let otherPlayers = new Map();
         
         // Handle login form
         const loginScreen = document.getElementById('loginScreen');
@@ -452,14 +446,67 @@
             const leaderboard = document.getElementById('leaderboard');
             
             if (isLeaderboardActive) {
-                leaderboard.style.display = 'flex';
+                console.log('=== OPENING LEADERBOARD ===');
+                console.log('Pointer lock element before:', document.pointerLockElement);
+                console.log('Is pointer locked?', !!document.pointerLockElement);
+                
+                leaderboard.style.display = 'block';
                 updateLeaderboard();
-                // Show mouse cursor when leaderboard is open
-                if (document.pointerLockElement === document.body) {
+                
+                // Try to exit pointer lock
+                if (document.pointerLockElement) {
+                    console.log('Attempting to exit pointer lock...');
                     document.exitPointerLock();
                 }
+                
+                // Check status after a short delay
+                setTimeout(() => {
+                    console.log('Pointer lock element after exit:', document.pointerLockElement);
+                    console.log('Is pointer still locked?', !!document.pointerLockElement);
+                    if (document.pointerLockElement) {
+                        console.log('Pointer lock still active, trying again...');
+                        document.exitPointerLock();
+                    }
+                }, 50);
+                
+                document.body.style.cursor = 'default';
+                document.body.style.pointerEvents = 'auto';
+                leaderboard.style.pointerEvents = 'auto';
+                
+                // Add CSS class to show cursor
+                document.body.classList.add('leaderboard-active');
+                
+                // Prevent any new pointer lock attempts
+                document.addEventListener('click', preventPointerLock, true);
+                
+                console.log('Leaderboard opened, cursor should be visible');
+                
             } else {
+                console.log('=== CLOSING LEADERBOARD ===');
                 leaderboard.style.display = 'none';
+                
+                // Re-enable normal pointer behavior
+                document.body.style.pointerEvents = 'auto';
+                document.body.classList.remove('leaderboard-active');
+                
+                // Remove pointer lock prevention
+                document.removeEventListener('click', preventPointerLock, true);
+                
+                // Automatically lock mouse back in for camera control
+                setTimeout(() => {
+                    if (!document.pointerLockElement) {
+                        console.log('Re-locking mouse for camera control...');
+                        document.body.requestPointerLock();
+                    }
+                }, 100);
+            }
+        }
+        
+        function preventPointerLock(event) {
+            if (isLeaderboardActive) {
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
             }
         }
         
@@ -597,7 +644,6 @@
             const wsHost = window.location.host;
             window.ws = new WebSocket(`${wsProtocol}://${wsHost}`);
             let clientId = null;
-            const otherPlayers = new Map();
 
             // Set up scene, camera, and renderer
             const scene = new THREE.Scene();
@@ -910,7 +956,7 @@
 
             // Mouse movement for looking around (when pointer is locked)
             document.addEventListener('mousemove', (event) => {
-                if (document.pointerLockElement === document.body) {
+                if (document.pointerLockElement === document.body && !isLeaderboardActive) {
                     const movementX = event.movementX || 0;
                     const movementY = event.movementY || 0;
                     
@@ -930,13 +976,13 @@
 
             // Click to lock pointer for mouse look (only when not already locked)
             document.addEventListener('click', (event) => {
-                // Don't lock pointer if clicking on UI elements
-                if (event.target.closest('#leaderboard, #chatContainer, #players, #coordinates, #debugView')) {
+                // Don't lock pointer if clicking on UI elements or if leaderboard is open
+                if (event.target.closest('#leaderboard, #chatContainer, #players, #coordinates, #debugView') || isLeaderboardActive) {
                     return;
                 }
                 
-                // Only lock if not already locked
-                if (!document.pointerLockElement) {
+                // Only lock if not already locked and leaderboard is not active
+                if (!document.pointerLockElement && !isLeaderboardActive) {
                     document.body.requestPointerLock();
                 }
             });
@@ -944,6 +990,10 @@
             // Add visual indicator for mouse lock state
             document.addEventListener('pointerlockchange', () => {
                 const mouseIndicator = document.getElementById('mouseIndicator');
+                console.log('=== POINTER LOCK CHANGE ===');
+                console.log('New pointer lock element:', document.pointerLockElement);
+                console.log('Is leaderboard active?', isLeaderboardActive);
+                
                 if (document.pointerLockElement === document.body) {
                     console.log('Mouse locked - you can look around');
                     mouseIndicator.textContent = '🔒 Mouse locked - Tab/ESC to show cursor';
