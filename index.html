@@ -34,6 +34,17 @@
             padding: 10px;
             border: 2px solid white;
         }
+        #stats {
+            position: fixed;
+            top: 20px;
+            left: 250px;
+            color: white;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border: 2px solid white;
+            min-width: 200px;
+        }
         #chatContainer {
             position: fixed;
             bottom: 20px;
@@ -144,6 +155,7 @@
     <div id="debugView"></div>
     <div id="coordinates"></div>
     <div id="players"></div>
+    <div id="stats"></div>
     <div id="chatContainer">
         <div id="chatMessages"></div>
         <input type="text" id="chatInput" placeholder="Type a message...">
@@ -157,6 +169,7 @@
         let cowColor = '#ffffff';
         let gameStarted = false;
         let isChatActive = false;
+        let isStatsActive = false; // Start with stats visible
         
         // Handle login form
         const loginScreen = document.getElementById('loginScreen');
@@ -229,9 +242,18 @@
             chatInput.style.background = 'rgba(255, 255, 255, 0.9)';
         }
 
+        function handleStatsKeydown(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                isStatsActive = !isStatsActive;
+                updateStatsDisplay();
+            }
+        }
+
         // Add event listeners for chat
         document.addEventListener('keydown', handleChatKeydown);
         document.addEventListener('keydown', handleGameKeydown);
+        document.addEventListener('keydown', handleStatsKeydown);
         chatInput.addEventListener('keypress', handleChatKeypress);
         chatInput.addEventListener('blur', handleChatBlur);
 
@@ -413,6 +435,7 @@
             // Track tree and hay positions to avoid intersections
             const treePositions = [];
             const hayPositions = [];
+            const hayObjects = new Map(); // Track hay objects for collision detection
 
             // Add debug trees
             const debugTrees = new THREE.Group();
@@ -459,8 +482,9 @@
             }
 
             // Function to create hay
-            function createHay(x, z) {
+            function createHay(x, z, hayId = null) {
                 const hayGroup = new THREE.Group();
+                const id = hayId || `hay_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
                 // Create hay bale using multiple cylinders for a realistic look
                 const hayBaleGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 8);
@@ -490,6 +514,7 @@
                 }
 
                 hayGroup.position.set(x, 0, z);
+                hayGroup.userData = { id: id, type: 'hay' };
                 scene.add(hayGroup);
 
                 // Add debug hay indicator
@@ -501,8 +526,9 @@
                 debugHayIndicator.position.set(x, 0.05, z);
                 debugHay.add(debugHayIndicator);
 
-                // Track hay position
-                hayPositions.push({ x, z });
+                // Track hay position and object
+                hayPositions.push({ x, z, id: id });
+                hayObjects.set(id, hayGroup);
 
                 return hayGroup;
             }
@@ -562,6 +588,12 @@
                 const x = Math.random() * 40 - 20;
                 const z = Math.random() * 40 - 20;
                 createTree(x, z);
+            }
+
+            // Add some initial hay
+            for (let i = 0; i < 5; i++) {
+                const position = findRandomClearPosition();
+                createHay(position.x, position.z);
             }
 
             // Position camera
@@ -635,6 +667,12 @@
                     case 'init':
                         clientId = data.id;
                         console.log('Initialized with ID:', clientId);
+                        
+                        // Update player stats if provided
+                        if (data.stats) {
+                            playerStats = { ...playerStats, ...data.stats };
+                        }
+                        
                         // Create other players that are already in the game
                         data.players.forEach(playerData => {
                             if (playerData.id !== clientId) {
@@ -704,6 +742,22 @@
                         console.log('Adding hay to map:', data);
                         addHayToMap(data);
                         break;
+
+                    case 'hay_collected':
+                        console.log('Hay collected by:', data.username);
+                        addChatMessage(`${data.username} collected some hay!`, 'system');
+                        break;
+
+                    case 'stats_updated':
+                        console.log('Stats updated:', data.stats);
+                        playerStats = { ...playerStats, ...data.stats };
+                        updateStatsDisplay();
+                        break;
+
+                    case 'level_up':
+                        console.log('Level up! New level:', data.newLevel);
+                        addChatMessage(`🎉 Congratulations! You reached level ${data.newLevel}!`, 'system');
+                        break;
                 }
             };
 
@@ -760,6 +814,13 @@
                 }
             }
 
+            let playerStats = {
+                level: 1,
+                experience: 0,
+                hayEaten: 0,
+                timePlayed: 0
+            };
+
             function updatePlayersList() {
                 const playersDiv = document.getElementById('players');
                 playersDiv.innerHTML = `
@@ -770,12 +831,92 @@
                 `;
             }
 
+            function updateStatsDisplay() {
+                const statsDiv = document.getElementById('stats');
+                
+                // Toggle visibility based on isStatsActive
+                if (isStatsActive) {
+                    statsDiv.style.display = 'block';
+                    const expToNextLevel = 100 - (playerStats.experience % 100);
+                    statsDiv.innerHTML = `
+                        <strong>Your Stats:</strong><br>
+                        Level: ${playerStats.level}<br>
+                        Experience: ${playerStats.experience}<br>
+                        Next Level: ${expToNextLevel} XP<br>
+                        Hay Eaten: ${playerStats.hayEaten}<br>
+                        Time Played: ${Math.floor(playerStats.timePlayed / 60)}m ${playerStats.timePlayed % 60}s
+                    `;
+                } else {
+                    statsDiv.style.display = 'none';
+                }
+            }
+
+            // Function to check collision with hay
+            function checkHayCollision() {
+                const playerPosition = player.position;
+                const collisionRadius = 1.0; // Distance to trigger hay collection
+                
+                for (const [hayId, hayObject] of hayObjects) {
+                    const hayPosition = hayObject.position;
+                    const distance = Math.sqrt(
+                        Math.pow(playerPosition.x - hayPosition.x, 2) + 
+                        Math.pow(playerPosition.z - hayPosition.z, 2)
+                    );
+                    
+                    if (distance < collisionRadius) {
+                        // Collect the hay
+                        collectHay(hayId, hayObject);
+                        break; // Only collect one hay at a time
+                    }
+                }
+            }
+
+            // Function to collect hay
+            function collectHay(hayId, hayObject) {
+                // Remove hay from scene
+                scene.remove(hayObject);
+                hayObjects.delete(hayId);
+                
+                // Remove from hay positions
+                const hayIndex = hayPositions.findIndex(hay => hay.id === hayId);
+                if (hayIndex !== -1) {
+                    hayPositions.splice(hayIndex, 1);
+                }
+                
+                // Send collection message to server
+                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({
+                        type: 'collect_hay',
+                        position: {
+                            x: player.position.x,
+                            y: player.position.y,
+                            z: player.position.z
+                        }
+                    }));
+                }
+            }
+
+            // Time tracking for stats
+            let gameStartTime = Date.now();
+            let lastTimeUpdate = 0;
+
             // Animation loop
             function animate() {
                 requestAnimationFrame(animate);
 
                 // Update cow movement
                 updateCowMovement(player, keys, moveSpeed, camera);
+
+                // Check for hay collisions
+                checkHayCollision();
+
+                // Update time played every second
+                const currentTime = Date.now();
+                if (currentTime - lastTimeUpdate >= 1000) {
+                    playerStats.timePlayed = Math.floor((currentTime - gameStartTime) / 1000);
+                    updateStatsDisplay();
+                    lastTimeUpdate = currentTime;
+                }
 
                 // Send position update to server
                 if (window.ws.readyState === WebSocket.OPEN) {

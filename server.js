@@ -255,6 +255,47 @@ wss.on('connection', async (ws) => {
                         console.error('Error getting stats:', error);
                     }
                     break;
+
+                case 'collect_hay':
+                    // Handle hay collection
+                    try {
+                        await redisHelpers.incrementPlayerStat(clientId, 'hayEaten');
+                        await redisHelpers.incrementGlobalStat('totalHayEaten');
+                        await redisHelpers.incrementPlayerStat(clientId, 'experience', 5);
+                        
+                        // Check for level up
+                        const stats = await redisHelpers.getPlayerStats(clientId);
+                        const newLevel = Math.floor(stats.experience / 100) + 1;
+                        if (newLevel > stats.level) {
+                            await redisHelpers.updatePlayerStats(clientId, { level: newLevel });
+                            ws.send(JSON.stringify({
+                                type: 'level_up',
+                                newLevel: newLevel
+                            }));
+                        }
+                        
+                        // Send updated stats to the player
+                        const updatedStats = await redisHelpers.getPlayerStats(clientId);
+                        ws.send(JSON.stringify({
+                            type: 'stats_updated',
+                            stats: updatedStats
+                        }));
+                        
+                        // Broadcast hay collection to all players
+                        const player = clients.get(clientId);
+                        if (player) {
+                            broadcastToAll({
+                                type: 'hay_collected',
+                                playerId: clientId,
+                                username: player.username,
+                                position: data.position
+                            });
+                        }
+                        
+                    } catch (error) {
+                        console.error('Error collecting hay:', error);
+                    }
+                    break;
             }
         } catch (error) {
             console.error('Error processing message:', error);

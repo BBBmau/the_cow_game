@@ -45,13 +45,17 @@ The game uses Redis for items and stats management:
 - **Global Stats**: Server-wide statistics (no expiration)
 
 ### Redis Data Structure
-- `cow_game:items:{playerId}` - Player's collected items
 - `cow_game:stats:{playerId}` - Player's statistics and achievements
 - `cow_game:global_stats` - Global server statistics
 
 ### Available Commands
-- `collect_item` - Add an item to player's inventory
-- `feed_cow` - Increment cow feeding stats and experience
+- `collect_hay` - Collect hay for experience and stats
 - `get_stats` - Retrieve player and global statistics
+
+### Game Features
+- **Hay Collection**: Walk near hay bales to collect them
+- **Experience System**: Gain XP for collecting hay
+- **Real-time Stats**: Track hay eaten and play time
+- **Global Statistics**: Server-wide hay collection tracking
 
 # Streams where this was built
