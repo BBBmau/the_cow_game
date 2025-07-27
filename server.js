@@ -157,19 +157,32 @@ wss.on('connection', async (ws) => {
         // Get global stats
         const globalStats = await redisHelpers.getGlobalStats();
         
+        // Get stats for all existing players
+        const playersWithStats = await Promise.all(
+            Array.from(clients.entries()).map(async ([id, data]) => {
+                const existingPlayerStats = await redisHelpers.getPlayerStats(id);
+                return {
+                    id,
+                    username: data.username,
+                    position: data.position,
+                    rotation: data.rotation,
+                    color: data.color,
+                    stats: {
+                        level: existingPlayerStats.level,
+                        hayEaten: existingPlayerStats.hayEaten,
+                        experience: existingPlayerStats.experience
+                    }
+                };
+            })
+        );
+        
         // Send initial data to client
         ws.send(JSON.stringify({
             type: 'init',
             id: clientId,
             stats: playerStats,
             globalStats: globalStats,
-            players: Array.from(clients.entries()).map(([id, data]) => ({
-                id,
-                username: data.username,
-                position: data.position,
-                rotation: data.rotation,
-                color: data.color
-            })),
+            players: playersWithStats,
             hay: hayManager.getAllHay() // Send existing hay to new player
         }));
     } catch (error) {
@@ -373,6 +386,21 @@ wss.on('connection', async (ws) => {
                             type: 'stats_updated',
                             stats: updatedStats
                         }));
+                        
+                        // Broadcast player stats update to all other players
+                        const playerData = clients.get(clientId);
+                        if (playerData) {
+                            broadcastToOthers(clientId, {
+                                type: 'player_stats_updated',
+                                playerId: clientId,
+                                username: playerData.username,
+                                stats: {
+                                    level: updatedStats.level,
+                                    hayEaten: updatedStats.hayEaten,
+                                    experience: updatedStats.experience
+                                }
+                            });
+                        }
                         
                         // Get and broadcast updated global stats
                         const updatedGlobalStats = await redisHelpers.getGlobalStats();

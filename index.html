@@ -240,25 +240,6 @@
             margin-top: 10px;
             font-style: italic;
         }
-        
-        #mouseIndicator {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: monospace;
-            font-size: 12px;
-            border: 2px solid #3498db;
-            z-index: 1000;
-        }
-        
-        #mouseIndicator.locked {
-            border-color: #e74c3c;
-            background: rgba(231, 76, 60, 0.2);
-        }
     </style>
 </head>
 <body>
@@ -290,18 +271,15 @@
         <div id="chatMessages"></div>
         <input type="text" id="chatInput" placeholder="Type a message...">
     </div>
-    <div id="mouseIndicator">
-        🖱️ Click to lock mouse • Tab/Escape to show cursor
-    </div>
     
     <!-- Leaderboard -->
     <div id="leaderboard">
         <div id="leaderboardContent">
-            <h1>📊 Stats</h1>
+            <h1>Stats</h1>
             
             <!-- Player Stats Section -->
             <div class="leaderboard-section">
-                <h2>👤 Your Stats</h2>
+                <h2>Your Stats</h2>
                 <div class="stats-grid" id="playerStatsGrid">
                     <!-- Player stats will be populated here -->
                 </div>
@@ -309,7 +287,7 @@
             
             <!-- Global Stats Section -->
             <div class="leaderboard-section">
-                <h2>🌍 Global Stats</h2>
+                <h2>Global Stats</h2>
                 <div class="stats-grid" id="globalStatsGrid">
                     <!-- Global stats will be populated here -->
                 </div>
@@ -317,7 +295,7 @@
             
             <!-- Online Players Section -->
             <div class="leaderboard-section">
-                <h2>🐄 Online Players</h2>
+                <h2>Online Players</h2>
                 <div class="players-list" id="onlinePlayersList">
                     <!-- Online players will be populated here -->
                 </div>
@@ -591,10 +569,15 @@
             
             // Sort by level (highest first), then by hay eaten
             players.sort((a, b) => {
-                if (b.level !== a.level) {
-                    return b.level - a.level;
+                const aLevel = a.level || 1;
+                const bLevel = b.level || 1;
+                const aHay = a.hayEaten || 0;
+                const bHay = b.hayEaten || 0;
+                
+                if (bLevel !== aLevel) {
+                    return bLevel - aLevel;
                 }
-                return b.hayEaten - a.hayEaten;
+                return bHay - aHay;
             });
             
             onlinePlayersList.innerHTML = players.map((player, index) => `
@@ -603,7 +586,7 @@
                         ${index + 1}. ${player.username} ${player.isCurrentPlayer ? '(You)' : ''}
                     </div>
                     <div class="player-stats">
-                        Level ${player.level} • ${player.hayEaten} hay
+                        Level ${player.level || 1} • ${player.hayEaten || 0} hay
                     </div>
                 </div>
             `).join('');
@@ -989,19 +972,14 @@
             
             // Add visual indicator for mouse lock state
             document.addEventListener('pointerlockchange', () => {
-                const mouseIndicator = document.getElementById('mouseIndicator');
                 console.log('=== POINTER LOCK CHANGE ===');
                 console.log('New pointer lock element:', document.pointerLockElement);
                 console.log('Is leaderboard active?', isLeaderboardActive);
                 
                 if (document.pointerLockElement === document.body) {
                     console.log('Mouse locked - you can look around');
-                    mouseIndicator.textContent = '🔒 Mouse locked - Tab/ESC to show cursor';
-                    mouseIndicator.classList.add('locked');
                 } else {
                     console.log('Mouse unlocked - click to lock for mouse look');
-                    mouseIndicator.textContent = '🖱️ Click to lock mouse • Tab/Escape to show cursor';
-                    mouseIndicator.classList.remove('locked');
                 }
             });
 
@@ -1050,7 +1028,7 @@
                         // Create other players that are already in the game
                         data.players.forEach(playerData => {
                             if (playerData.id !== clientId) {
-                                console.log('Creating other player:', playerData);
+                                console.log('Creating other player with stats:', playerData);
                                 createOtherPlayer(playerData);
                             }
                         });
@@ -1159,7 +1137,7 @@
 
                     case 'level_up':
                         console.log('Level up! New level:', data.newLevel);
-                        addChatMessage(`🎉 Congratulations! You reached level ${data.newLevel}!`, 'system');
+                        addChatMessage(`Congratulations! You reached level ${data.newLevel}!`, 'system');
                         break;
                         
                     case 'global_stats_updated':
@@ -1167,6 +1145,23 @@
                         globalStats = { ...globalStats, ...data.globalStats };
                         if (isLeaderboardActive) {
                             updateLeaderboard();
+                        }
+                        break;
+                        
+                    case 'player_stats_updated':
+                        console.log('Player stats updated:', data);
+                        // Update the other player's stats in our local map
+                        if (otherPlayers.has(data.playerId)) {
+                            const playerData = otherPlayers.get(data.playerId);
+                            playerData.level = data.stats.level;
+                            playerData.hayEaten = data.stats.hayEaten;
+                            playerData.experience = data.stats.experience;
+                            otherPlayers.set(data.playerId, playerData);
+                            
+                            // Update leaderboard if it's open
+                            if (isLeaderboardActive) {
+                                updateLeaderboard();
+                            }
                         }
                         break;
                 }
@@ -1189,7 +1184,10 @@
                 otherPlayers.set(data.id, {
                     cow: otherPlayer,
                     username: data.username || 'Anonymous',
-                    color: data.color || '#ffffff'
+                    color: data.color || '#ffffff',
+                    level: data.stats?.level || 1,
+                    hayEaten: data.stats?.hayEaten || 0,
+                    experience: data.stats?.experience || 0
                 });
                 updatePlayersList();
             }
