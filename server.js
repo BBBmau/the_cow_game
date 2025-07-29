@@ -288,8 +288,20 @@ const hayManager = {
 // Initialize Redis connection
 async function initializeRedis() {
     try {
-        // Wait for Redis connection
-        await client.connect();
+        // Wait for Redis to be ready (connection handled in redis.js)
+        // Check if Redis is connected, if not wait a bit
+        let retries = 0;
+        while (!client.isOpen && retries < 10) {
+            console.log('Waiting for Redis connection...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            retries++;
+        }
+        
+        if (!client.isOpen) {
+            console.error('Redis connection timeout after 10 seconds');
+            return;
+        }
+        
         console.log('Redis connected successfully for stats');
         
         // Initialize global stats if they don't exist
@@ -303,7 +315,7 @@ async function initializeRedis() {
             });
         }
     } catch (error) {
-        console.error('Failed to connect to Redis:', error);
+        console.error('Failed to initialize Redis:', error);
     }
 }
 

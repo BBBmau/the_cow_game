@@ -37,8 +37,19 @@ client.on('end', () => {
     console.log('Redis client disconnected');
 });
 
-// Connect to Redis
-client.connect().catch(console.error);
+// Connect to Redis and wait for it to be ready
+async function connectRedis() {
+    try {
+        await client.connect();
+        console.log('Redis connection established successfully');
+    } catch (error) {
+        console.error('Failed to connect to Redis:', error);
+        // Don't throw error - let the app continue without Redis
+    }
+}
+
+// Initialize the connection
+connectRedis();
 
 // Redis keys for stats
 const REDIS_KEYS = {
@@ -49,9 +60,18 @@ const REDIS_KEYS = {
 
 // Helper functions for stats
 const redisHelpers = {
+    // Check if Redis client is connected
+    isConnected() {
+        return client.isOpen && client.isReady;
+    },
+
     // Set a key with optional expiration
     async set(key, value, expireSeconds = null) {
         try {
+            if (!this.isConnected()) {
+                console.warn('Redis not connected, skipping SET operation');
+                return false;
+            }
 
             if (value === null || value === undefined) {
                 return true;
@@ -69,9 +89,14 @@ const redisHelpers = {
         }
     },
 
-    // Get a key
+    // Get a value by key
     async get(key) {
         try {
+            if (!this.isConnected()) {
+                console.warn('Redis not connected, skipping GET operation');
+                return null;
+            }
+
             const value = await client.get(key);
             return value ? JSON.parse(value) : null;
         } catch (error) {
