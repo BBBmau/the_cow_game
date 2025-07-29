@@ -344,3 +344,384 @@ resource "kubernetes_manifest" "managed_certificate_2" {
     }
   }
 }
+
+// Redis Exporter for Grafana monitoring
+resource "kubernetes_deployment" "redis_exporter" {
+  metadata {
+    name = "redis-exporter"
+    labels = {
+      "app" = "redis-exporter"
+    }
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        "app" = "redis-exporter"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app" = "redis-exporter"
+        }
+      }
+
+      spec {
+        container {
+          image = "oliver006/redis_exporter:latest"
+          name  = "redis-exporter"
+
+          port {
+            container_port = 9121
+          }
+
+          env {
+            name  = "REDIS_ADDR"
+            value = "redis://redis:6379"
+          }
+
+          resources {
+            limits = {
+              cpu    = "100m"
+              memory = "64Mi"
+            }
+            requests = {
+              cpu    = "10m"
+              memory = "32Mi"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Redis Exporter Service
+resource "kubernetes_service" "redis_exporter" {
+  metadata {
+    name = "redis-exporter"
+    labels = {
+      "app" = "redis-exporter"
+    }
+  }
+
+  spec {
+    selector = {
+      "app" = "redis-exporter"
+    }
+
+    port {
+      port        = 9121
+      target_port = 9121
+      protocol    = "TCP"
+    }
+
+    type = "ClusterIP"
+  }
+}
+
+// Grafana Deployment
+resource "kubernetes_deployment" "grafana" {
+  metadata {
+    name = "grafana"
+    labels = {
+      "app" = "grafana"
+    }
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        "app" = "grafana"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app" = "grafana"
+        }
+      }
+
+      spec {
+        container {
+          image = "grafana/grafana:latest"
+          name  = "grafana"
+
+          port {
+            container_port = 3000
+          }
+
+          # Grafana admin credentials
+          env {
+            name  = "GF_SECURITY_ADMIN_USER"
+            value = "admin"
+          }
+
+          env {
+            name  = "GF_SECURITY_ADMIN_PASSWORD"
+            value = "your-secure-password-123"  # Change this!
+          }
+
+          # Disable anonymous access
+          env {
+            name  = "GF_AUTH_ANONYMOUS_ENABLED"
+            value = "false"
+          }
+
+          # Security settings
+          env {
+            name  = "GF_SECURITY_ALLOW_EMBEDDING"
+            value = "false"
+          }
+
+          env {
+            name  = "GF_SECURITY_COOKIE_SECURE"
+            value = "true"
+          }
+
+          resources {
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+            requests = {
+              cpu    = "100m"
+              memory = "256Mi"
+            }
+          }
+
+          # Persistent storage for Grafana data
+          volume_mount {
+            name       = "grafana-data"
+            mount_path = "/var/lib/grafana"
+          }
+        }
+
+        volume {
+          name = "grafana-data"
+          persistent_volume_claim {
+            claim_name = "grafana-pvc"
+          }
+        }
+      }
+    }
+  }
+}
+
+// Grafana Service (LoadBalancer for external access)
+resource "kubernetes_service" "grafana" {
+  metadata {
+    name = "grafana"
+    labels = {
+      "app" = "grafana"
+    }
+  }
+
+  spec {
+    selector = {
+      "app" = "grafana"
+    }
+
+    port {
+      port        = 80
+      target_port = 3000
+      protocol    = "TCP"
+    }
+
+    type = "LoadBalancer"
+  }
+}
+
+// Persistent Volume Claim for Grafana
+resource "kubernetes_persistent_volume_claim" "grafana" {
+  metadata {
+    name = "grafana-pvc"
+  }
+
+  spec {
+    access_modes = ["ReadWriteOnce"]
+    
+    resources {
+      requests = {
+        storage = "2Gi"
+      }
+    }
+  }
+}
+
+// ConfigMap for Grafana Prometheus data source
+resource "kubernetes_config_map" "grafana_datasources" {
+  metadata {
+    name = "grafana-datasources"
+  }
+
+  data = {
+    "datasources.yaml" = <<-EOT
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+          editable: true
+    EOT
+  }
+}
+
+// Prometheus for metrics collection
+resource "kubernetes_deployment" "prometheus" {
+  metadata {
+    name = "prometheus"
+    labels = {
+      "app" = "prometheus"
+    }
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        "app" = "prometheus"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app" = "prometheus"
+        }
+      }
+
+      spec {
+        container {
+          image = "prom/prometheus:latest"
+          name  = "prometheus"
+
+          port {
+            container_port = 9090
+          }
+
+          args = [
+            "--config.file=/etc/prometheus/prometheus.yml",
+            "--storage.tsdb.path=/prometheus/",
+            "--web.console.libraries=/etc/prometheus/console_libraries",
+            "--web.console.templates=/etc/prometheus/consoles",
+            "--storage.tsdb.retention.time=200h",
+            "--web.enable-lifecycle"
+          ]
+
+          resources {
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+            requests = {
+              cpu    = "100m"
+              memory = "256Mi"
+            }
+          }
+
+          volume_mount {
+            name       = "prometheus-config"
+            mount_path = "/etc/prometheus"
+          }
+
+          volume_mount {
+            name       = "prometheus-data"
+            mount_path = "/prometheus"
+          }
+        }
+
+        volume {
+          name = "prometheus-config"
+          config_map {
+            name = "prometheus-config"
+          }
+        }
+
+        volume {
+          name = "prometheus-data"
+          persistent_volume_claim {
+            claim_name = "prometheus-pvc"
+          }
+        }
+      }
+    }
+  }
+}
+
+// Prometheus Service
+resource "kubernetes_service" "prometheus" {
+  metadata {
+    name = "prometheus"
+    labels = {
+      "app" = "prometheus"
+    }
+  }
+
+  spec {
+    selector = {
+      "app" = "prometheus"
+    }
+
+    port {
+      port        = 9090
+      target_port = 9090
+      protocol    = "TCP"
+    }
+
+    type = "ClusterIP"
+  }
+}
+
+// Prometheus PVC
+resource "kubernetes_persistent_volume_claim" "prometheus" {
+  metadata {
+    name = "prometheus-pvc"
+  }
+
+  spec {
+    access_modes = ["ReadWriteOnce"]
+    
+    resources {
+      requests = {
+        storage = "5Gi"
+      }
+    }
+  }
+}
+
+// Prometheus Configuration
+resource "kubernetes_config_map" "prometheus_config" {
+  metadata {
+    name = "prometheus-config"
+  }
+
+  data = {
+    "prometheus.yml" = <<-EOT
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+
+      scrape_configs:
+        - job_name: 'redis-exporter'
+          static_configs:
+            - targets: ['redis-exporter:9121']
+          scrape_interval: 30s
+          metrics_path: /metrics
+
+        - job_name: 'prometheus'
+          static_configs:
+            - targets: ['localhost:9090']
+    EOT
+  }
+}
