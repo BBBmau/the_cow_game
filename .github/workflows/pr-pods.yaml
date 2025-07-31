@@ -1,9 +1,8 @@
-name: Main Branch Pod Deployment
+name: PR Pod Environment Management
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch: # manually trigger the workflow
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 env:
   PROJECT_ID: thecowgame
@@ -12,6 +11,7 @@ env:
 
 jobs:
   build-image:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     outputs:
       image-sha: ${{ steps.build.outputs.image-sha }}
