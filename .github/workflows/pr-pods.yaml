@@ -60,9 +60,13 @@ jobs:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         project_id: ${{ env.PROJECT_ID }}
 
+    - name: Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+
     - name: Install GKE Auth Plugin
       run: |
         gcloud components install gke-gcloud-auth-plugin
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
     - name: Get GKE credentials
       run: |
@@ -281,9 +285,13 @@ jobs:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         project_id: ${{ env.PROJECT_ID }}
 
+    - name: Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+
     - name: Install GKE Auth Plugin
       run: |
         gcloud components install gke-gcloud-auth-plugin
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
     - name: Get GKE credentials
       run: |
