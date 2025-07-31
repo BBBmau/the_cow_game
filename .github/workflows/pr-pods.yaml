@@ -102,8 +102,8 @@ jobs:
       id: get-info
       run: |
         # Write outputs directly using predictable names
-        echo "gameserver-pod=cow-game-pr-${{ github.event.number }}-server" >> $GITHUB_OUTPUT
-        echo "redis-pod=cow-game-pr-${{ github.event.number }}-redis" >> $GITHUB_OUTPUT  
+        echo "gameserver-deployment=cow-game-pr-${{ github.event.number }}-server" >> $GITHUB_OUTPUT
+        echo "redis-deployment=cow-game-pr-${{ github.event.number }}-redis" >> $GITHUB_OUTPUT  
         echo "gameserver-service=cow-game-pr-${{ github.event.number }}-server" >> $GITHUB_OUTPUT
         
         # Get load balancer IP using kubectl instead of terraform output to avoid debug info
@@ -117,19 +117,20 @@ jobs:
         
         echo "load-balancer-ip=${LB_IP}" >> $GITHUB_OUTPUT
 
-    - name: Comment PR
+    - name: Comment PR (Initial)
+      id: initial-comment
       uses: actions/github-script@v6
       with:
         script: |
           const prNumber = context.payload.number;
           const imagesha = "${{ needs.build-image.outputs.image-sha }}";
-          const gameserverPod = "${{ steps.get-info.outputs.gameserver-pod }}";
-          const redisPod = "${{ steps.get-info.outputs.redis-pod }}";
+          const gameserverDeployment = "${{ steps.get-info.outputs.gameserver-deployment }}";
+          const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
           const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
           const loadBalancerIP = "${{ steps.get-info.outputs.load-balancer-ip }}";
           
           const accessSection = loadBalancerIP === "pending" ? 
-            "🔄 **Status:** LoadBalancer IP is being assigned... (check back in ~2 minutes)" : 
+            "🔄 **Status:** LoadBalancer IP is being assigned... (will update this comment when ready)" : 
             `🌐 **Game URL:** http://${loadBalancerIP}\n🎮 **Game Server:** ${loadBalancerIP}:6060`;
           
           const body = "## 🚀 PR Environment Deployed Successfully!\n\n" +
@@ -142,19 +143,21 @@ jobs:
             accessSection + "\n\n" +
             "---\n\n" +
             "### 📦 Resources Created\n" +
-            `- 🎮 **Game Server Pod:** \`${gameserverPod}\`\n` +
-            `- 🗄️ **Redis Pod:** \`${redisPod}\`\n` +
+            `- 🎮 **Game Server Deployment:** \`${gameserverDeployment}\`\n` +
+            `- 🗄️ **Redis Deployment:** \`${redisDeployment}\`\n` +
             `- ⚖️ **Load Balancer:** \`${gameserverService}\`\n\n` +
             "### 🔍 Monitoring Commands\n" +
             "```bash\n" +
+            "# Check deployment status\n" +
+            `kubectl get deployments -l pr-number=${prNumber}\n\n` +
             "# Check pod status\n" +
             `kubectl get pods -l pr-number=${prNumber}\n\n` +
             "# Check service status\n" +
             `kubectl get services -l pr-number=${prNumber}\n\n` +
             "# View game server logs\n" +
-            `kubectl logs ${gameserverPod} -f\n\n` +
+            `kubectl logs deployment/${gameserverDeployment} -f\n\n` +
             "# View Redis logs\n" +
-            `kubectl logs ${redisPod} -f\n` +
+            `kubectl logs deployment/${redisDeployment} -f\n` +
             "```\n\n" +
             "### 🎯 Testing Your Changes\n" +
             "1. Navigate to the game URL above\n" +
@@ -163,12 +166,104 @@ jobs:
             "---\n" +
             "<sub>💡 This environment will be automatically cleaned up when the PR is closed/merged</sub>";
           
-          github.rest.issues.createComment({
+          const comment = await github.rest.issues.createComment({
             issue_number: prNumber,
             owner: context.repo.owner,
             repo: context.repo.repo,
             body: body
           });
+          
+          return comment.data.id;
+
+    - name: Wait for LoadBalancer IP and Update Comment
+      if: steps.get-info.outputs.load-balancer-ip == 'pending'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prNumber = context.payload.number;
+          const imagesha = "${{ needs.build-image.outputs.image-sha }}";
+          const gameserverDeployment = "${{ steps.get-info.outputs.gameserver-deployment }}";
+          const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
+          const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
+          const commentId = ${{ steps.initial-comment.outputs.result }};
+          
+          // Wait for LoadBalancer IP with timeout
+          let loadBalancerIP = "pending";
+          const maxAttempts = 12; // 6 minutes total (30s * 12)
+          
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            console.log(`Attempt ${attempt}/${maxAttempts}: Checking LoadBalancer IP...`);
+            
+            try {
+              const { exec } = require('child_process');
+              const util = require('util');
+              const execAsync = util.promisify(exec);
+              
+              const { stdout } = await execAsync(`kubectl get service ${gameserverService} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`);
+              const ip = stdout.trim();
+              
+              if (ip && ip !== 'null' && ip !== '') {
+                loadBalancerIP = ip;
+                console.log(`LoadBalancer IP found: ${loadBalancerIP}`);
+                break;
+              }
+            } catch (error) {
+              console.log(`Error checking LoadBalancer: ${error.message}`);
+            }
+            
+            if (attempt < maxAttempts) {
+              console.log('IP not ready yet, waiting 30 seconds...');
+              await new Promise(resolve => setTimeout(resolve, 30000));
+            }
+          }
+          
+          // Update the comment with final status
+          const accessSection = loadBalancerIP === "pending" ? 
+            "⚠️ **Status:** LoadBalancer IP assignment timed out. Please check manually:\n```bash\nkubectl get service " + gameserverService + " -o jsonpath='{.status.loadBalancer.ingress[0].ip}'\n```" : 
+            `🌐 **Game URL:** http://${loadBalancerIP}\n🎮 **Game Server:** ${loadBalancerIP}:6060`;
+          
+          const updatedBody = "## 🚀 PR Environment Deployed Successfully!\n\n" +
+            "| **Parameter** | **Value** |\n" +
+            "|---------------|-----------|\n" +
+            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
+            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n` +
+            `| 🌐 **IP Ready** | ${loadBalancerIP === "pending" ? "⏰ Timed out" : "✅ " + new Date().toLocaleString()} |\n\n` +
+            "### 🌐 Access Your Environment\n" +
+            accessSection + "\n\n" +
+            "---\n\n" +
+            "### 📦 Resources Created\n" +
+            `- 🎮 **Game Server Deployment:** \`${gameserverDeployment}\`\n` +
+            `- 🗄️ **Redis Deployment:** \`${redisDeployment}\`\n` +
+            `- ⚖️ **Load Balancer:** \`${gameserverService}\`\n\n` +
+            "### 🔍 Monitoring Commands\n" +
+            "```bash\n" +
+            "# Check deployment status\n" +
+            `kubectl get deployments -l pr-number=${prNumber}\n\n` +
+            "# Check pod status\n" +
+            `kubectl get pods -l pr-number=${prNumber}\n\n` +
+            "# Check service status\n" +
+            `kubectl get services -l pr-number=${prNumber}\n\n` +
+            "# View game server logs\n" +
+            `kubectl logs deployment/${gameserverDeployment} -f\n\n` +
+            "# View Redis logs\n" +
+            `kubectl logs deployment/${redisDeployment} -f\n` +
+            "```\n\n" +
+            "### 🎯 Testing Your Changes\n" +
+            "1. Navigate to the game URL above\n" +
+            "2. Test your PR changes in the isolated environment\n" +
+            "3. Check logs for any issues\n\n" +
+            "---\n" +
+            "<sub>💡 This environment will be automatically cleaned up when the PR is closed/merged</sub>";
+          
+          await github.rest.issues.updateComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: commentId,
+            body: updatedBody
+          });
+          
+          console.log(`Comment updated with LoadBalancer IP: ${loadBalancerIP}`);
 
   cleanup-pr-pods:
     if: github.event.action == 'closed'

@@ -6,10 +6,15 @@ This directory contains Terraform configuration for managing lightweight PR envi
 
 When a PR is opened, synchronize, or reopened, this system will:
 1. Build and push a Docker image with the PR changes
-2. Deploy a Redis pod for data storage
-3. Deploy a game server pod using the new image
-4. Create LoadBalancer services for external access
-5. Comment on the PR with access information
+2. Deploy Redis and game server deployments
+3. Create LoadBalancer services for external access
+4. Comment on the PR with access information
+
+**On PR Updates (new commits):**
+- Builds new Docker image with latest code
+- Updates deployments with new image SHA
+- Deployments automatically roll out updates to pods
+- Zero-downtime updates using Kubernetes rolling deployment strategy
 
 When a PR is closed or merged, all resources are automatically cleaned up.
 
@@ -17,15 +22,17 @@ When a PR is closed or merged, all resources are automatically cleaned up.
 
 ```
 PR Environment (per PR):
-├── Redis Pod (cow-game-pr-{number}-redis)
+├── Redis Deployment (cow-game-pr-{number}-redis)
 │   ├── Internal ClusterIP service
 │   ├── 128Mi memory, 100m CPU limit
-│   └── 64Mi memory, 50m CPU request
-└── Game Server Pod (cow-game-pr-{number}-server)
+│   ├── 64Mi memory, 50m CPU request
+│   └── Auto-updates when PR is updated
+└── Game Server Deployment (cow-game-pr-{number}-server)
     ├── LoadBalancer service (ports 80, 6060)
     ├── 256Mi memory, 200m CPU limit
     ├── 128Mi memory, 100m CPU request
     ├── Node affinity: prefers existing nodes
+    ├── Auto-updates when PR is updated
     └── Environment variables:
         ├── REDIS_HOST=cow-game-pr-{number}-redis
         ├── PR_NUMBER={number}
@@ -41,6 +48,8 @@ PR Environment (per PR):
 - **Isolated**: Each PR gets its own pods and services
 - **Lightweight**: Optimized resource requests to coexist with production workloads
 - **Node Efficient**: Prefers scheduling on existing nodes to avoid autoscaling
+- **Auto-Updating**: Deployments automatically update when PR code changes
+- **Zero-Downtime**: Rolling updates ensure no service interruption
 
 ## Files
 
@@ -85,16 +94,17 @@ terraform workspace delete pr-123
 
 ## Monitoring
 
-Check pod status:
+Check deployment and pod status:
 ```bash
+kubectl get deployments -l pr-number=123
 kubectl get pods -l pr-number=123
 kubectl get services -l pr-number=123
 ```
 
 View logs:
 ```bash
-kubectl logs cow-game-pr-123-server
-kubectl logs cow-game-pr-123-redis
+kubectl logs deployment/cow-game-pr-123-server -f
+kubectl logs deployment/cow-game-pr-123-redis -f
 ```
 
 ## Prerequisites
