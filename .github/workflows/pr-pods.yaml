@@ -128,37 +128,46 @@ jobs:
           const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
           const loadBalancerIP = "${{ steps.get-info.outputs.load-balancer-ip }}";
           
-          const ipStatus = loadBalancerIP === "pending" ? 
-            "🔄 LoadBalancer IP is being assigned..." : 
-            `🌐 **Access URL:** http://${loadBalancerIP}`;
+          const accessSection = loadBalancerIP === "pending" ? 
+            "🔄 **Status:** LoadBalancer IP is being assigned... (check back in ~2 minutes)" : 
+            `🌐 **Game URL:** http://${loadBalancerIP}\n🎮 **Game Server:** ${loadBalancerIP}:6060`;
+          
+          const body = "## 🚀 PR Environment Deployed Successfully!\n\n" +
+            "| **Parameter** | **Value** |\n" +
+            "|---------------|-----------|\n" +
+            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
+            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n\n` +
+            "### 🌐 Access Your Environment\n" +
+            accessSection + "\n\n" +
+            "---\n\n" +
+            "### 📦 Resources Created\n" +
+            `- 🎮 **Game Server Pod:** \`${gameserverPod}\`\n` +
+            `- 🗄️ **Redis Pod:** \`${redisPod}\`\n` +
+            `- ⚖️ **Load Balancer:** \`${gameserverService}\`\n\n` +
+            "### 🔍 Monitoring Commands\n" +
+            "```bash\n" +
+            "# Check pod status\n" +
+            `kubectl get pods -l pr-number=${prNumber}\n\n` +
+            "# Check service status\n" +
+            `kubectl get services -l pr-number=${prNumber}\n\n` +
+            "# View game server logs\n" +
+            `kubectl logs ${gameserverPod} -f\n\n` +
+            "# View Redis logs\n" +
+            `kubectl logs ${redisPod} -f\n` +
+            "```\n\n" +
+            "### 🎯 Testing Your Changes\n" +
+            "1. Navigate to the game URL above\n" +
+            "2. Test your PR changes in the isolated environment\n" +
+            "3. Check logs for any issues\n\n" +
+            "---\n" +
+            "<sub>💡 This environment will be automatically cleaned up when the PR is closed/merged</sub>";
           
           github.rest.issues.createComment({
             issue_number: prNumber,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: `🚀 **PR Pod Environment Deployed!**
-            
-            **Environment:** \`pr-${prNumber}\`
-            **Image SHA:** \`${imagesha}\`
-            ${ipStatus}
-            
-            **Resources Created:**
-            - Game Server Pod: \`${gameserverPod}\`
-            - Redis Pod: \`${redisPod}\`
-            - Game Server Service: \`${gameserverService}\`
-            
-            **Commands to check status:**
-            \`\`\`bash
-            kubectl get pods -l pr-number=${prNumber}
-            kubectl get services -l pr-number=${prNumber}
-            \`\`\`
-            
-            **To access logs:**
-            \`\`\`bash
-            kubectl logs ${gameserverPod}
-            kubectl logs ${redisPod}
-            \`\`\`
-            `
+            body: body
           });
 
   cleanup-pr-pods:
