@@ -4,6 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 env:
   PROJECT_ID: thecowgame
   REGION: us-west1
@@ -95,18 +100,22 @@ jobs:
 
     - name: Get deployment info
       id: get-info
-      working-directory: ./infra/pr-pods
       run: |
-        # Write outputs directly using terraform output without command substitution
+        # Write outputs directly using predictable names
         echo "gameserver-pod=cow-game-pr-${{ github.event.number }}-server" >> $GITHUB_OUTPUT
         echo "redis-pod=cow-game-pr-${{ github.event.number }}-redis" >> $GITHUB_OUTPUT  
         echo "gameserver-service=cow-game-pr-${{ github.event.number }}-server" >> $GITHUB_OUTPUT
         
-        # Try to get the load balancer IP, fallback to "pending" if it fails
-        terraform output -raw gameserver_load_balancer_ip > lb_ip.txt 2>/dev/null || echo "pending" > lb_ip.txt
-        LB_IP=$(cat lb_ip.txt | tr -d '\n' | tr -d '\r')
+        # Get load balancer IP using kubectl instead of terraform output to avoid debug info
+        SERVICE_NAME="cow-game-pr-${{ github.event.number }}-server"
+        LB_IP=$(kubectl get service $SERVICE_NAME -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+        
+        # If IP is empty, set to pending
+        if [ -z "$LB_IP" ] || [ "$LB_IP" = "null" ]; then
+          LB_IP="pending"
+        fi
+        
         echo "load-balancer-ip=${LB_IP}" >> $GITHUB_OUTPUT
-        rm -f lb_ip.txt
 
     - name: Comment PR
       uses: actions/github-script@v6
