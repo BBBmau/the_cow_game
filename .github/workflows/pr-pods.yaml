@@ -97,10 +97,19 @@ jobs:
       id: get-info
       working-directory: ./infra/pr-pods
       run: |
-        echo "gameserver-pod=$(terraform output -raw gameserver_pod_name)" >> $GITHUB_OUTPUT
-        echo "redis-pod=$(terraform output -raw redis_pod_name)" >> $GITHUB_OUTPUT
-        echo "gameserver-service=$(terraform output -raw gameserver_service_name)" >> $GITHUB_OUTPUT
-        echo "load-balancer-ip=$(terraform output -raw gameserver_load_balancer_ip)" >> $GITHUB_OUTPUT
+        # Check outputs exist before trying to use them
+        terraform output
+        
+        # Get outputs with error handling
+        GAMESERVER_POD=$(terraform output -raw gameserver_pod_name 2>/dev/null || echo "cow-game-pr-${{ github.event.number }}-server")
+        REDIS_POD=$(terraform output -raw redis_pod_name 2>/dev/null || echo "cow-game-pr-${{ github.event.number }}-redis")
+        GAMESERVER_SERVICE=$(terraform output -raw gameserver_service_name 2>/dev/null || echo "cow-game-pr-${{ github.event.number }}-server")
+        LOAD_BALANCER_IP=$(terraform output -raw gameserver_load_balancer_ip 2>/dev/null || echo "pending")
+        
+        echo "gameserver-pod=${GAMESERVER_POD}" >> $GITHUB_OUTPUT
+        echo "redis-pod=${REDIS_POD}" >> $GITHUB_OUTPUT
+        echo "gameserver-service=${GAMESERVER_SERVICE}" >> $GITHUB_OUTPUT
+        echo "load-balancer-ip=${LOAD_BALANCER_IP}" >> $GITHUB_OUTPUT
 
     - name: Comment PR
       uses: actions/github-script@v6
