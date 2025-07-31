@@ -19,10 +19,13 @@ When a PR is closed or merged, all resources are automatically cleaned up.
 PR Environment (per PR):
 ├── Redis Pod (cow-game-pr-{number}-redis)
 │   ├── Internal ClusterIP service
-│   └── 256Mi memory, 200m CPU limit
+│   ├── 128Mi memory, 100m CPU limit
+│   └── 64Mi memory, 50m CPU request
 └── Game Server Pod (cow-game-pr-{number}-server)
     ├── LoadBalancer service (ports 80, 6060)
-    ├── 512Mi memory, 500m CPU limit
+    ├── 256Mi memory, 200m CPU limit
+    ├── 128Mi memory, 100m CPU request
+    ├── Node affinity: prefers existing nodes
     └── Environment variables:
         ├── REDIS_HOST=cow-game-pr-{number}-redis
         ├── PR_NUMBER={number}
@@ -36,6 +39,8 @@ PR Environment (per PR):
 - **Resource Sharing**: Uses existing production cluster
 - **Simpler Management**: Fewer resources to track and clean up
 - **Isolated**: Each PR gets its own pods and services
+- **Lightweight**: Optimized resource requests to coexist with production workloads
+- **Node Efficient**: Prefers scheduling on existing nodes to avoid autoscaling
 
 ## Files
 

@@ -21,12 +21,12 @@ resource "kubernetes_pod_v1" "redis" {
 
       resources {
         requests = {
-          memory = "128Mi"
-          cpu    = "100m"
+          memory = "64Mi"
+          cpu    = "50m"
         }
         limits = {
-          memory = "256Mi"
-          cpu    = "200m"
+          memory = "128Mi"
+          cpu    = "100m"
         }
       }
 
@@ -39,6 +39,21 @@ resource "kubernetes_pod_v1" "redis" {
     }
 
     restart_policy = "Always"
+    
+    # Prefer to schedule on existing nodes to avoid triggering autoscaling
+    affinity {
+      node_affinity {
+        preferred_during_scheduling_ignored_during_execution {
+          weight = 100
+          preference {
+            match_expressions {
+              key      = "cloud.google.com/gke-nodepool"
+              operator = "Exists"
+            }
+          }
+        }
+      }
+    }
   }
 }
 
@@ -118,12 +133,12 @@ resource "kubernetes_pod_v1" "gameserver" {
 
       resources {
         requests = {
-          memory = "256Mi"
-          cpu    = "250m"
+          memory = "128Mi"
+          cpu    = "100m"
         }
         limits = {
-          memory = "512Mi"
-          cpu    = "500m"
+          memory = "256Mi"
+          cpu    = "200m"
         }
       }
     }
@@ -132,6 +147,21 @@ resource "kubernetes_pod_v1" "gameserver" {
 
     image_pull_secrets {
       name = "artifact-registry-secret"
+    }
+    
+    # Prefer to schedule on existing nodes to avoid triggering autoscaling
+    affinity {
+      node_affinity {
+        preferred_during_scheduling_ignored_during_execution {
+          weight = 100
+          preference {
+            match_expressions {
+              key      = "cloud.google.com/gke-nodepool"
+              operator = "Exists"
+            }
+          }
+        }
+      }
     }
   }
 
