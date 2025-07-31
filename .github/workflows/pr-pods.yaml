@@ -1,8 +1,9 @@
-name: PR Pod Environment Management
+name: Main Branch Pod Deployment
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [main]
+  workflow_dispatch: # manually trigger the workflow
 
 env:
   PROJECT_ID: thecowgame
@@ -11,7 +12,6 @@ env:
 
 jobs:
   build-image:
-    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     outputs:
       image-sha: ${{ steps.build.outputs.image-sha }}
@@ -57,7 +57,7 @@ jobs:
 
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials cow-game-cluster --region=${{ env.REGION }}
+        gcloud container clusters get-credentials the-cow-game-cluster --region=${{ env.REGION }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
@@ -162,7 +162,7 @@ jobs:
 
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials cow-game-cluster --region=${{ env.REGION }}
+        gcloud container clusters get-credentials the-cow-game-cluster --region=${{ env.REGION }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2

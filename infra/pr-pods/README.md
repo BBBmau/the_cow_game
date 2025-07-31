@@ -94,7 +94,7 @@ kubectl logs cow-game-pr-123-redis
 
 ## Prerequisites
 
-- Existing GKE cluster (`cow-game-cluster`)
+- Existing GKE cluster (`the-cow-game-cluster`)
 - Docker registry secret (`artifact-registry-secret`)
 - Proper IAM permissions for the service account
 - Terraform backend bucket (`cow_game_k8s_tfstate`) 

@@ -21,7 +21,7 @@ terraform {
 
 # Get cluster information from the main infra
 data "google_container_cluster" "primary" {
-  name     = "cow-game-cluster"  # Production cluster name
+  name     = "the-cow-game-cluster"  # Production cluster name
   location = var.region
   project  = var.project_id
 }
