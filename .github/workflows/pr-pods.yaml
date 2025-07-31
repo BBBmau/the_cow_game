@@ -60,6 +60,10 @@ jobs:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         project_id: ${{ env.PROJECT_ID }}
 
+    - name: Install GKE Auth Plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
+
     - name: Get GKE credentials
       run: |
         gcloud container clusters get-credentials the-cow-game-cluster --region=${{ env.REGION }}
@@ -175,7 +179,34 @@ jobs:
           
           return comment.data.id;
 
-    - name: Wait for LoadBalancer IP and Update Comment
+    - name: Wait for LoadBalancer IP
+      if: steps.get-info.outputs.load-balancer-ip == 'pending'
+      id: wait-for-ip
+      run: |
+        SERVICE_NAME="cow-game-pr-${{ github.event.number }}-server"
+        LOAD_BALANCER_IP="pending"
+        MAX_ATTEMPTS=12  # 6 minutes total (30s * 12)
+        
+        for attempt in $(seq 1 $MAX_ATTEMPTS); do
+          echo "Attempt $attempt/$MAX_ATTEMPTS: Checking LoadBalancer IP..."
+          
+          IP=$(kubectl get service $SERVICE_NAME -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+          
+          if [ -n "$IP" ] && [ "$IP" != "null" ] && [ "$IP" != "" ]; then
+            LOAD_BALANCER_IP="$IP"
+            echo "LoadBalancer IP found: $LOAD_BALANCER_IP"
+            break
+          fi
+          
+          if [ $attempt -lt $MAX_ATTEMPTS ]; then
+            echo "IP not ready yet, waiting 30 seconds..."
+            sleep 30
+          fi
+        done
+        
+        echo "final-ip=$LOAD_BALANCER_IP" >> $GITHUB_OUTPUT
+
+    - name: Update Comment with LoadBalancer IP
       if: steps.get-info.outputs.load-balancer-ip == 'pending'
       uses: actions/github-script@v6
       with:
@@ -186,36 +217,7 @@ jobs:
           const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
           const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
           const commentId = ${{ steps.initial-comment.outputs.result }};
-          
-          // Wait for LoadBalancer IP with timeout
-          let loadBalancerIP = "pending";
-          const maxAttempts = 12; // 6 minutes total (30s * 12)
-          
-          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            console.log(`Attempt ${attempt}/${maxAttempts}: Checking LoadBalancer IP...`);
-            
-            try {
-              const { exec } = require('child_process');
-              const util = require('util');
-              const execAsync = util.promisify(exec);
-              
-              const { stdout } = await execAsync(`kubectl get service ${gameserverService} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`);
-              const ip = stdout.trim();
-              
-              if (ip && ip !== 'null' && ip !== '') {
-                loadBalancerIP = ip;
-                console.log(`LoadBalancer IP found: ${loadBalancerIP}`);
-                break;
-              }
-            } catch (error) {
-              console.log(`Error checking LoadBalancer: ${error.message}`);
-            }
-            
-            if (attempt < maxAttempts) {
-              console.log('IP not ready yet, waiting 30 seconds...');
-              await new Promise(resolve => setTimeout(resolve, 30000));
-            }
-          }
+          const loadBalancerIP = "${{ steps.wait-for-ip.outputs.final-ip }}";
           
           // Update the comment with final status
           const accessSection = loadBalancerIP === "pending" ? 
@@ -278,6 +280,10 @@ jobs:
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         project_id: ${{ env.PROJECT_ID }}
+
+    - name: Install GKE Auth Plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
 
     - name: Get GKE credentials
       run: |
