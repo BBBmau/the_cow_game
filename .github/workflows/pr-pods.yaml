@@ -180,10 +180,16 @@ jobs:
             "🔄 **Status:** LoadBalancer IP is being assigned... (will update this comment when ready)" : 
             `🎮 **Game Server:** [http://play-the-cow-game-testing/PR-${prNumber}](http://${loadBalancerIP}:6060)`;
           
-          const body = "## 🚀 PR Environment Deployed Successfully!\n\n" +
+          const table =
+            "| **Parameter** | **Value** |\n" +
             "|---------------|-----------|\n" +
-            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n\n` +
-            "### 🌐 Test Your Changes\n" +
+            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
+            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 📅 **Deployed** | ${new Date().toLocaleString()} |`;
+          
+          const body = "## 🚀 PR Environment Deployed Successfully!\n\n" +
+            table + "\n\n" +
+            "### 🌐 Access Your Environment\n" +
             accessSection + "\n\n" +
             "---\n" +
             "<sub>💡 This environment will be automatically cleaned up when the PR is closed/merged</sub>";
@@ -251,10 +257,17 @@ jobs:
             "⚠️ **Status:** LoadBalancer IP assignment timed out. Please check manually:\n\`\`\`bash\nkubectl get service " + gameserverService + " -o jsonpath='{.status.loadBalancer.ingress[0].ip}'\n\`\`\`" : 
             `🎮 **Game Server:** [http://play-the-cow-game-testing/PR-${prNumber}](http://${loadBalancerIP}:6060)`;
           
+          const table =
+            "| **Parameter** | **Value** |\n" +
+            "|---------------|-----------|\n" +
+            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
+            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n` +
+            `| 🌐 **IP Ready** | ${loadBalancerIP === "pending" ? "⏰ Timed out" : "✅ " + new Date().toLocaleString()} |`;
+          
           const updatedBody = "## 🚀 PR Environment Deployed Successfully!\n\n" +
-            `|  **Deployed** | ${new Date().toLocaleString()} |\n` +
-            `| 🌐 **IP Ready** | ${loadBalancerIP === "pending" ? "⏰ Timed out" : "✅ " + new Date().toLocaleString()} |\n\n` +
-            "### 🌐 Test Your Changes\n" +
+            table + "\n\n" +
+            "### 🌐 Access Your Environment\n" +
             accessSection + "\n\n" +
             "---\n" +
             "<sub>💡 This environment will be automatically cleaned up when the PR is closed/merged</sub>";
