@@ -29,6 +29,9 @@ resource "kubernetes_deployment_v1" "redis" {
       }
 
       spec {
+        # Remove priority class to allow preemption by higher priority workloads
+        # priority_class_name defaults to 0 (lowest priority)
+        
         container {
           name  = "redis"
           image = "redis:7-alpine"
@@ -40,12 +43,12 @@ resource "kubernetes_deployment_v1" "redis" {
 
           resources {
             requests = {
-              memory = "64Mi"
-              cpu    = "50m"
+              memory = "32Mi"
+              cpu    = "25m"
             }
             limits = {
-              memory = "128Mi"
-              cpu    = "100m"
+              memory = "64Mi"
+              cpu    = "50m"
             }
           }
 
@@ -139,6 +142,9 @@ resource "kubernetes_deployment_v1" "gameserver" {
       }
 
       spec {
+        # Remove priority class to allow preemption by higher priority workloads  
+        # priority_class_name defaults to 0 (lowest priority)
+        
         container {
           name  = "game-server"
           image = "us-west1-docker.pkg.dev/thecowgame/game-images/mmo-server:${var.image_sha}"
@@ -175,12 +181,12 @@ resource "kubernetes_deployment_v1" "gameserver" {
 
           resources {
             requests = {
-              memory = "128Mi"
-              cpu    = "100m"
+              memory = "64Mi"
+              cpu    = "50m"
             }
             limits = {
-              memory = "256Mi"
-              cpu    = "200m"
+              memory = "128Mi"
+              cpu    = "100m"
             }
           }
         }

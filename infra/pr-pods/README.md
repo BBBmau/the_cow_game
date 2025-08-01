@@ -24,15 +24,16 @@ When a PR is closed or merged, all resources are automatically cleaned up.
 PR Environment (per PR):
 ├── Redis Deployment (cow-game-pr-{number}-redis)
 │   ├── Internal ClusterIP service
-│   ├── 128Mi memory, 100m CPU limit
-│   ├── 64Mi memory, 50m CPU request
+│   ├── 64Mi memory, 50m CPU limit
+│   ├── 32Mi memory, 25m CPU request
 │   └── Auto-updates when PR is updated
 └── Game Server Deployment (cow-game-pr-{number}-server)
     ├── LoadBalancer service (ports 80, 6060)
-    ├── 256Mi memory, 200m CPU limit
-    ├── 128Mi memory, 100m CPU request
+    ├── 128Mi memory, 100m CPU limit
+    ├── 64Mi memory, 50m CPU request
     ├── Node affinity: prefers existing nodes
     ├── Auto-updates when PR is updated
+    ├── Low priority: can be preempted if needed
     └── Environment variables:
         ├── REDIS_HOST=cow-game-pr-{number}-redis
         ├── PR_NUMBER={number}
@@ -99,6 +100,13 @@ Check deployment and pod status:
 kubectl get deployments -l pr-number=123
 kubectl get pods -l pr-number=123
 kubectl get services -l pr-number=123
+
+# Check node resource usage
+kubectl top nodes
+kubectl describe nodes
+
+# Check pod resource requests vs available capacity
+kubectl describe node | grep -A 5 "Allocated resources"
 ```
 
 View logs:
