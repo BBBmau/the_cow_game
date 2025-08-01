@@ -110,7 +110,7 @@ jobs:
             LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' || echo "")
             if [ -n "$LOCK_ID" ]; then
               echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
-              echo "yes" | terraform force-unlock "$LOCK_ID" || echo "Lock may already be cleared"
+              terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
             fi
           fi
         fi
@@ -348,7 +348,7 @@ jobs:
               LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' || echo "")
               if [ -n "$LOCK_ID" ]; then
                 echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
-                echo "yes" | terraform force-unlock "$LOCK_ID" || echo "Lock may already be cleared"
+                terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
               fi
             fi
           fi
