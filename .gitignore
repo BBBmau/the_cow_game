@@ -1,2 +1,5 @@
 infra/.terraform
+infra/terraform.tfvars
+infra/pr-pods/.terraform
+infra/pr-pods/terraform.tfvars
 node_modules/

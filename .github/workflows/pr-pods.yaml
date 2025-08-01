@@ -1,0 +1,377 @@
+name: PR Pod Environment Management
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  PROJECT_ID: thecowgame
+  REGION: us-west1
+  REGISTRY: us-west1-docker.pkg.dev
+
+jobs:
+  build-image:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      image-sha: ${{ steps.build.outputs.image-sha }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Configure Docker for GCR
+      run: gcloud auth configure-docker ${{ env.REGISTRY }}
+
+    - name: Build and push Docker image
+      id: build
+      run: |
+        IMAGE_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/game-images/mmo-server:${IMAGE_SHA}"
+        
+        docker build -t $IMAGE_TAG .
+        docker push $IMAGE_TAG
+        
+        echo "image-sha=${IMAGE_SHA}" >> $GITHUB_OUTPUT
+
+  deploy-pr-pods:
+    if: github.event.action != 'closed'
+    needs: build-image
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Install GKE Auth Plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials the-cow-game-cluster --region=${{ env.REGION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.5.0
+
+    - name: Terraform Init
+      working-directory: ./infra/pr-pods
+      run: terraform init
+
+    - name: Create or select workspace
+      working-directory: ./infra/pr-pods
+      run: |
+        WORKSPACE_NAME="pr-${{ github.event.number }}"
+        terraform workspace select $WORKSPACE_NAME || terraform workspace new $WORKSPACE_NAME
+
+    - name: Create Terraform variables file
+      working-directory: ./infra/pr-pods
+      run: |
+        cat > terraform.tfvars <<EOF
+        project_id = "${{ env.PROJECT_ID }}"
+        region = "${{ env.REGION }}"
+        image_sha = "${{ needs.build-image.outputs.image-sha }}"
+        environment = "pr-${{ github.event.number }}"
+        pr_number = "${{ github.event.number }}"
+        EOF
+
+    - name: Force unlock if needed
+      working-directory: ./infra/pr-pods
+      run: |
+        # Check if there's a lock and force unlock if needed
+        if ! terraform plan -detailed-exitcode > /dev/null 2>&1; then
+          echo "Terraform plan failed, checking for state lock..."
+          # Try to get the lock info and extract the lock ID
+          LOCK_OUTPUT=$(terraform plan 2>&1 || true)
+          if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
+            LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | head -n 1 | tr -d '\n\r' || echo "")
+            if [ -n "$LOCK_ID" ]; then
+              echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
+              terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
+            fi
+          fi
+        fi
+
+    - name: Terraform Plan
+      working-directory: ./infra/pr-pods
+      run: terraform plan -out=tfplan
+
+    - name: Terraform Apply
+      working-directory: ./infra/pr-pods
+      run: terraform apply tfplan
+
+    - name: Get deployment info
+      id: get-info
+      run: |
+        # Write outputs directly using predictable names
+        echo "gameserver-deployment=cow-game-pr-${{ github.event.number }}-server" >> $GITHUB_OUTPUT
+        echo "redis-deployment=cow-game-pr-${{ github.event.number }}-redis" >> $GITHUB_OUTPUT  
+        echo "gameserver-service=cow-game-pr-${{ github.event.number }}-server" >> $GITHUB_OUTPUT
+        
+        # Get load balancer IP using kubectl instead of terraform output to avoid debug info
+        SERVICE_NAME="cow-game-pr-${{ github.event.number }}-server"
+        LB_IP=$(kubectl get service $SERVICE_NAME -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+        
+        # If IP is empty, set to pending
+        if [ -z "$LB_IP" ] || [ "$LB_IP" = "null" ]; then
+          LB_IP="pending"
+        fi
+        
+        echo "load-balancer-ip=${LB_IP}" >> $GITHUB_OUTPUT
+
+    - name: Find Previous Comment
+      id: find-comment
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prNumber = context.payload.number;
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+          });
+
+          const botComment = comments.find(comment =>
+            comment.user.login === 'github-actions[bot]' &&
+            comment.body.includes('## 🚀 PR Environment Deployed Successfully!')
+          );
+
+          if (botComment) {
+            return botComment.id;
+          }
+
+    - name: Create or Update Initial Comment
+      id: initial-comment
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prNumber = context.payload.number;
+          const commentId = "${{ steps.find-comment.outputs.result }}";
+          const imagesha = "${{ needs.build-image.outputs.image-sha }}";
+          const gameserverDeployment = "${{ steps.get-info.outputs.gameserver-deployment }}";
+          const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
+          const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
+          const loadBalancerIP = "${{ steps.get-info.outputs.load-balancer-ip }}";
+          
+          const accessSection = loadBalancerIP === "pending" ? 
+            "🔄 **Status:** LoadBalancer IP is being assigned... (will update this comment when ready)" : 
+            `🎮 **Game Server:** ${loadBalancerIP}:6060`;
+          
+          const body = "## 🚀 PR Environment Deployed Successfully!\n\n" +
+            "| **Parameter** | **Value** |\n" +
+            "|---------------|-----------|\n" +
+            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
+            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n\n` +
+            "### 🌐 Access Your Environment\n" +
+            accessSection + "\n\n" +
+            "---\n" +
+            "<sub>💡 This environment will be automatically cleaned up when the PR is closed/merged</sub>";
+
+          if (commentId) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: body
+            });
+            return commentId;
+          } else {
+            const { data: newComment } = await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+            return newComment.id;
+          }
+
+    - name: Wait for LoadBalancer IP
+      if: steps.get-info.outputs.load-balancer-ip == 'pending'
+      id: wait-for-ip
+      run: |
+        SERVICE_NAME="cow-game-pr-${{ github.event.number }}-server"
+        LOAD_BALANCER_IP="pending"
+        MAX_ATTEMPTS=12  # 6 minutes total (30s * 12)
+        
+        for attempt in $(seq 1 $MAX_ATTEMPTS); do
+          echo "Attempt $attempt/$MAX_ATTEMPTS: Checking LoadBalancer IP..."
+          
+          IP=$(kubectl get service $SERVICE_NAME -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+          
+          if [ -n "$IP" ] && [ "$IP" != "null" ] && [ "$IP" != "" ]; then
+            LOAD_BALANCER_IP="$IP"
+            echo "LoadBalancer IP found: $LOAD_BALANCER_IP"
+            break
+          fi
+          
+          if [ $attempt -lt $MAX_ATTEMPTS ]; then
+            echo "IP not ready yet, waiting 30 seconds..."
+            sleep 30
+          fi
+        done
+        
+        echo "final-ip=$LOAD_BALANCER_IP" >> $GITHUB_OUTPUT
+
+    - name: Update Comment with LoadBalancer IP
+      if: steps.get-info.outputs.load-balancer-ip == 'pending'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prNumber = context.payload.number;
+          const imagesha = "${{ needs.build-image.outputs.image-sha }}";
+          const gameserverDeployment = "${{ steps.get-info.outputs.gameserver-deployment }}";
+          const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
+          const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
+          const commentId = ${{ steps.initial-comment.outputs.result }};
+          const loadBalancerIP = "${{ steps.wait-for-ip.outputs.final-ip }}";
+          
+          // Update the comment with final status
+          const accessSection = loadBalancerIP === "pending" ? 
+            "⚠️ **Status:** LoadBalancer IP assignment timed out. Please check manually:\n```bash\nkubectl get service " + gameserverService + " -o jsonpath='{.status.loadBalancer.ingress[0].ip}'\n```" : 
+            `🎮 **Game Server:** ${loadBalancerIP}:6060`;
+          
+          const updatedBody = "## 🚀 PR Environment Deployed Successfully!\n\n" +
+            "| **Parameter** | **Value** |\n" +
+            "|---------------|-----------|\n" +
+            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
+            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n` +
+            `| 🌐 **IP Ready** | ${loadBalancerIP === "pending" ? "⏰ Timed out" : "✅ " + new Date().toLocaleString()} |\n\n` +
+            "### 🌐 Access Your Environment\n" +
+            accessSection + "\n\n" +
+            "---\n" +
+            "<sub>💡 This environment will be automatically cleaned up when the PR is closed/merged</sub>";
+          
+          await github.rest.issues.updateComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: commentId,
+            body: updatedBody
+          });
+          
+          console.log(`Comment updated with LoadBalancer IP: ${loadBalancerIP}`);
+
+  cleanup-pr-pods:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Install GKE Auth Plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials the-cow-game-cluster --region=${{ env.REGION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.5.0
+
+    - name: Terraform Init
+      working-directory: ./infra/pr-pods
+      run: terraform init
+
+    - name: Create Terraform variables file
+      working-directory: ./infra/pr-pods
+      run: |
+        cat > terraform.tfvars <<EOF
+        project_id = "${{ env.PROJECT_ID }}"
+        region = "${{ env.REGION }}"
+        image_sha = "cleanup"
+        environment = "pr-${{ github.event.number }}"
+        pr_number = "${{ github.event.number }}"
+        EOF
+
+    - name: Force unlock if needed
+      working-directory: ./infra/pr-pods
+      run: |
+        WORKSPACE_NAME="pr-${{ github.event.number }}"
+        if terraform workspace select $WORKSPACE_NAME 2>/dev/null; then
+          # Check if there's a lock and force unlock if needed
+          if ! terraform plan -detailed-exitcode > /dev/null 2>&1; then
+            echo "Terraform plan failed, checking for state lock..."
+            # Try to get the lock info and extract the lock ID
+            LOCK_OUTPUT=$(terraform plan 2>&1 || true)
+            if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
+              LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | head -n 1 | tr -d '\n\r' || echo "")
+              if [ -n "$LOCK_ID" ]; then
+                echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
+                terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
+              fi
+            fi
+          fi
+        fi
+
+    - name: Select workspace and destroy
+      working-directory: ./infra/pr-pods
+      run: |
+        WORKSPACE_NAME="pr-${{ github.event.number }}"
+        if terraform workspace select $WORKSPACE_NAME; then
+          terraform destroy -auto-approve
+          
+          terraform workspace select default
+          terraform workspace delete $WORKSPACE_NAME
+        else
+          echo "Workspace pr-${{ github.event.number }} not found, nothing to clean up"
+        fi
+
+    - name: Comment PR
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prNumber = context.payload.number;
+          
+          github.rest.issues.createComment({
+            issue_number: prNumber,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `🧹 **PR Pod Environment Cleaned Up!**
+            
+            **Environment:** \`pr-${prNumber}\`
+            **Status:** All pods and services destroyed
+            
+            The following resources have been removed:
+            - Game Server Pod: \`cow-game-pr-${prNumber}-server\`
+            - Redis Pod: \`cow-game-pr-${prNumber}-redis\`
+            - Associated services and LoadBalancer
+            `
+          }); 
