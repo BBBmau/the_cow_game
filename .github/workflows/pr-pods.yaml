@@ -1,8 +1,13 @@
-name: PR Pod Environment Management
+name: CI/CD Pipeline
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'infra/**'
+      - '.github/**'
 
 permissions:
   contents: read
@@ -16,14 +21,28 @@ env:
 
 jobs:
   build-image:
-    if: github.event.action != 'closed'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     outputs:
-      image-sha: ${{ steps.build.outputs.image-sha }}
+      image-sha: ${{ steps.set-sha.outputs.short_sha }}
     
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Set image SHA
+      id: set-sha
+      run: |
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          SHA="${{ github.event.pull_request.head.sha }}"
+        else
+          SHA="${{ github.sha }}"
+        fi
+        echo "sha=$SHA" >> $GITHUB_OUTPUT
+        echo "short_sha=$(echo $SHA | cut -c1-7)" >> $GITHUB_OUTPUT
 
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
@@ -34,19 +53,32 @@ jobs:
     - name: Configure Docker for GCR
       run: gcloud auth configure-docker ${{ env.REGISTRY }}
 
-    - name: Build and push Docker image
-      id: build
+    - name: Check if image already exists
+      id: check-image
       run: |
-        IMAGE_SHA=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)
-        IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/game-images/mmo-server:${IMAGE_SHA}"
-        
+        IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/game-images/mmo-server:${{ steps.set-sha.outputs.sha }}"
+        if docker pull $IMAGE_TAG 2>/dev/null; then
+          echo "Image with tag ${{ steps.set-sha.outputs.sha }} already exists"
+          echo "skip_build=true" >> $GITHUB_OUTPUT
+        else
+          echo "Image with tag ${{ steps.set-sha.outputs.sha }} does not exist, will build"
+          echo "skip_build=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build and push Docker image
+      if: steps.check-image.outputs.skip_build != 'true'
+      run: |
+        IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/game-images/mmo-server:${{ steps.set-sha.outputs.sha }}"
         docker build -t $IMAGE_TAG .
         docker push $IMAGE_TAG
-        
-        echo "image-sha=${IMAGE_SHA}" >> $GITHUB_OUTPUT
+    
+    - name: Output image URI for main branch
+      if: github.event_name == 'push'
+      run: |
+        echo "Image for main branch pushed: ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/game-images/mmo-server:${{ steps.set-sha.outputs.sha }}"
 
   deploy-pr-pods:
-    if: github.event.action != 'closed'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     needs: build-image
     runs-on: ubuntu-latest
     
@@ -171,9 +203,6 @@ jobs:
           const prNumber = context.payload.number;
           const commentId = "${{ steps.find-comment.outputs.result }}";
           const imagesha = "${{ needs.build-image.outputs.image-sha }}";
-          const gameserverDeployment = "${{ steps.get-info.outputs.gameserver-deployment }}";
-          const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
-          const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
           const loadBalancerIP = "${{ steps.get-info.outputs.load-balancer-ip }}";
           
           const accessSection = loadBalancerIP === "pending" ? 
@@ -243,8 +272,6 @@ jobs:
         script: |
           const prNumber = context.payload.number;
           const imagesha = "${{ needs.build-image.outputs.image-sha }}";
-          const gameserverDeployment = "${{ steps.get-info.outputs.gameserver-deployment }}";
-          const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
           const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
           const commentId = ${{ steps.initial-comment.outputs.result }};
           const loadBalancerIP = "${{ steps.wait-for-ip.outputs.final-ip }}";
@@ -276,7 +303,7 @@ jobs:
           console.log(`Comment updated with LoadBalancer IP: ${loadBalancerIP}`);
 
   cleanup-pr-pods:
-    if: github.event.action == 'closed'
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     
     steps:
