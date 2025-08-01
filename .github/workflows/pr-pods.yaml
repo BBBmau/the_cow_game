@@ -107,7 +107,7 @@ jobs:
           # Try to get the lock info and extract the lock ID
           LOCK_OUTPUT=$(terraform plan 2>&1 || true)
           if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
-            LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' || echo "")
+            LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | tr -d '\n\r' || echo "")
             if [ -n "$LOCK_ID" ]; then
               echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
               terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
@@ -345,7 +345,7 @@ jobs:
             # Try to get the lock info and extract the lock ID
             LOCK_OUTPUT=$(terraform plan 2>&1 || true)
             if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
-              LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' || echo "")
+              LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | tr -d '\n\r' || echo "")
               if [ -n "$LOCK_ID" ]; then
                 echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
                 terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
