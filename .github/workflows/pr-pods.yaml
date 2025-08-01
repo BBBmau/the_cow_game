@@ -37,7 +37,7 @@ jobs:
     - name: Build and push Docker image
       id: build
       run: |
-        IMAGE_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        IMAGE_SHA=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)
         IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/game-images/mmo-server:${IMAGE_SHA}"
         
         docker build -t $IMAGE_TAG .
@@ -184,7 +184,7 @@ jobs:
             "| **Parameter** | **Value** |\n" +
             "|---------------|-----------|\n" +
             `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
-            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 🐋 **Commit** | \`${imagesha}\` |\n` +
             `| 📅 **Deployed** | ${new Date().toLocaleString()} |`;
           
           const body = "## 🚀 PR Environment Deployed Successfully!\n\n" +
@@ -258,10 +258,8 @@ jobs:
             `🎮 **Game Server:** [http://play-the-cow-game-testing/PR-${prNumber}](http://${loadBalancerIP}:6060)`;
           
           const table =
-            "| **Parameter** | **Value** |\n" +
             "|---------------|-----------|\n" +
-            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
-            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 🐋 **Commit** | \`${imagesha}\` |\n` +
             `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n` +
             `| 🌐 **IP Ready** | ${loadBalancerIP === "pending" ? "⏰ Timed out" : "✅ " + new Date().toLocaleString()} |`;
           
