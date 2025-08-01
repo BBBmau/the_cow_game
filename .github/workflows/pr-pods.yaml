@@ -98,6 +98,23 @@ jobs:
         pr_number = "${{ github.event.number }}"
         EOF
 
+    - name: Force unlock if needed
+      working-directory: ./infra/pr-pods
+      run: |
+        # Check if there's a lock and force unlock if needed
+        if ! terraform plan -detailed-exitcode > /dev/null 2>&1; then
+          echo "Terraform plan failed, checking for state lock..."
+          # Try to get the lock info and extract the lock ID
+          LOCK_OUTPUT=$(terraform plan 2>&1 || true)
+          if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
+            LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' || echo "")
+            if [ -n "$LOCK_ID" ]; then
+              echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
+              echo "yes" | terraform force-unlock "$LOCK_ID" || echo "Lock may already be cleared"
+            fi
+          fi
+        fi
+
     - name: Terraform Plan
       working-directory: ./infra/pr-pods
       run: terraform plan -out=tfplan
@@ -316,6 +333,26 @@ jobs:
         environment = "pr-${{ github.event.number }}"
         pr_number = "${{ github.event.number }}"
         EOF
+
+    - name: Force unlock if needed
+      working-directory: ./infra/pr-pods
+      run: |
+        WORKSPACE_NAME="pr-${{ github.event.number }}"
+        if terraform workspace select $WORKSPACE_NAME 2>/dev/null; then
+          # Check if there's a lock and force unlock if needed
+          if ! terraform plan -detailed-exitcode > /dev/null 2>&1; then
+            echo "Terraform plan failed, checking for state lock..."
+            # Try to get the lock info and extract the lock ID
+            LOCK_OUTPUT=$(terraform plan 2>&1 || true)
+            if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
+              LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' || echo "")
+              if [ -n "$LOCK_ID" ]; then
+                echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
+                echo "yes" | terraform force-unlock "$LOCK_ID" || echo "Lock may already be cleared"
+              fi
+            fi
+          fi
+        fi
 
     - name: Select workspace and destroy
       working-directory: ./infra/pr-pods
