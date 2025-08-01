@@ -142,12 +142,34 @@ jobs:
         
         echo "load-balancer-ip=${LB_IP}" >> $GITHUB_OUTPUT
 
-    - name: Comment PR (Initial)
+    - name: Find Previous Comment
+      id: find-comment
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prNumber = context.payload.number;
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+          });
+
+          const botComment = comments.find(comment =>
+            comment.user.login === 'github-actions[bot]' &&
+            comment.body.includes('## 🚀 PR Environment Deployed Successfully!')
+          );
+
+          if (botComment) {
+            return botComment.id;
+          }
+
+    - name: Create or Update Initial Comment
       id: initial-comment
       uses: actions/github-script@v6
       with:
         script: |
           const prNumber = context.payload.number;
+          const commentId = "${{ steps.find-comment.outputs.result }}";
           const imagesha = "${{ needs.build-image.outputs.image-sha }}";
           const gameserverDeployment = "${{ steps.get-info.outputs.gameserver-deployment }}";
           const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
@@ -168,15 +190,24 @@ jobs:
             accessSection + "\n\n" +
             "---\n" +
             "<sub>💡 This environment will be automatically cleaned up when the PR is closed/merged</sub>";
-          
-          const comment = await github.rest.issues.createComment({
-            issue_number: prNumber,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: body
-          });
-          
-          return comment.data.id;
+
+          if (commentId) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: body
+            });
+            return commentId;
+          } else {
+            const { data: newComment } = await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+            return newComment.id;
+          }
 
     - name: Wait for LoadBalancer IP
       if: steps.get-info.outputs.load-balancer-ip == 'pending'
