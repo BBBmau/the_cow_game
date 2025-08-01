@@ -37,7 +37,7 @@ jobs:
     - name: Build and push Docker image
       id: build
       run: |
-        IMAGE_SHA=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)
+        IMAGE_SHA=$(echo ${{ github.sha }} | cut -c1-7)
         IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/game-images/mmo-server:${IMAGE_SHA}"
         
         docker build -t $IMAGE_TAG .
@@ -178,14 +178,14 @@ jobs:
           
           const accessSection = loadBalancerIP === "pending" ? 
             "🔄 **Status:** LoadBalancer IP is being assigned... (will update this comment when ready)" : 
-            `🎮 **Game Server:** [http://play-the-cow-game-testing/PR-${prNumber}](http://${loadBalancerIP}:6060)`;
-          
-          const detailsList =
-            `*   🐋 **Commit:** \`${imagesha}\`\n` +
-            `*   📅 **Deployed:** ${new Date().toLocaleString()}`;
+            `🎮 **Game Server:** ${loadBalancerIP}:6060`;
           
           const body = "## 🚀 PR Environment Deployed Successfully!\n\n" +
-            detailsList + "\n\n" +
+            "| **Parameter** | **Value** |\n" +
+            "|---------------|-----------|\n" +
+            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
+            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n\n` +
             "### 🌐 Access Your Environment\n" +
             accessSection + "\n\n" +
             "---\n" +
@@ -251,16 +251,16 @@ jobs:
           
           // Update the comment with final status
           const accessSection = loadBalancerIP === "pending" ? 
-            "⚠️ **Status:** LoadBalancer IP assignment timed out. Please check manually:\n\`\`\`bash\nkubectl get service " + gameserverService + " -o jsonpath='{.status.loadBalancer.ingress[0].ip}'\n\`\`\`" : 
-            `🎮 **Game Server:** [http://play-the-cow-game-testing/PR-${prNumber}](http://${loadBalancerIP}:6060)`;
-          
-          const detailsList =
-            `*   🐋 **Commit:** \`${imagesha}\`\n` +
-            `*   📅 **Deployed:** ${new Date().toLocaleString()}\n` +
-            `*   🌐 **IP Ready:** ${loadBalancerIP === "pending" ? "⏰ Timed out" : "✅ " + new Date().toLocaleString()}`;
+            "⚠️ **Status:** LoadBalancer IP assignment timed out. Please check manually:\n```bash\nkubectl get service " + gameserverService + " -o jsonpath='{.status.loadBalancer.ingress[0].ip}'\n```" : 
+            `🎮 **Game Server:** ${loadBalancerIP}:6060`;
           
           const updatedBody = "## 🚀 PR Environment Deployed Successfully!\n\n" +
-            detailsList + "\n\n" +
+            "| **Parameter** | **Value** |\n" +
+            "|---------------|-----------|\n" +
+            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
+            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
+            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n` +
+            `| 🌐 **IP Ready** | ${loadBalancerIP === "pending" ? "⏰ Timed out" : "✅ " + new Date().toLocaleString()} |\n\n` +
             "### 🌐 Access Your Environment\n" +
             accessSection + "\n\n" +
             "---\n" +
