@@ -181,9 +181,7 @@ jobs:
             `🎮 **Game Server:** [http://play-the-cow-game-testing/PR-${prNumber}](http://${loadBalancerIP}:6060)`;
           
           const table =
-            "| **Parameter** | **Value** |\n" +
             "|---------------|-----------|\n" +
-            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
             `| 🐋 **Commit** | \`${imagesha}\` |\n` +
             `| 📅 **Deployed** | ${new Date().toLocaleString()} |`;
           
