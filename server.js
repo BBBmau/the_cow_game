@@ -573,6 +573,7 @@ wss.on('connection', async (ws) => {
                         // Broadcast chat message to all clients
                         broadcastToAll({
                             type: 'chat_message',
+                            playerId: clientId,
                             username: chatClient.username,
                             text: data.text
                         });

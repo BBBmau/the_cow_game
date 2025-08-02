@@ -886,13 +886,18 @@
                 nameLabel.position.y = 3;  // Raised position for better visibility
             }
 
-            function showFloatingMessage(targetObject, text) {
+            function showFloatingMessage(targetObject, text, isChatMessage = false) {
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
-                canvas.width = 256;
-                canvas.height = 128;
+                
+                // Adjust canvas size for chat messages
+                const fontSize = isChatMessage ? 32 : 48;
+                const canvasWidth = isChatMessage ? 1024 : 256;
+                const canvasHeight = 128;
+                canvas.width = canvasWidth;
+                canvas.height = canvasHeight;
 
-                context.font = 'Bold 48px Arial';
+                context.font = `Bold ${fontSize}px Arial`;
                 context.textAlign = 'center';
                 context.textBaseline = 'middle';
 
@@ -901,8 +906,8 @@
                 context.lineWidth = 6;
                 context.strokeText(text, canvas.width / 2, canvas.height / 2);
 
-                // Green fill color
-                context.fillStyle = '#00FF00'; // Bright green
+                // Use white for chat, green for system messages
+                context.fillStyle = isChatMessage ? '#FFFFFF' : '#00FF00';
                 context.fillText(text, canvas.width / 2, canvas.height / 2);
 
                 const texture = new THREE.CanvasTexture(canvas);
@@ -912,7 +917,10 @@
                     depthTest: false 
                 });
                 const sprite = new THREE.Sprite(material);
-                sprite.scale.set(2, 1, 1);
+                
+                // Adjust scale for chat messages
+                const scaleX = isChatMessage ? 8 : 2;
+                sprite.scale.set(scaleX, 1, 1);
 
                 // Position it above the target object
                 const startPosition = targetObject.position.clone();
@@ -920,7 +928,7 @@
                 scene.add(sprite);
 
                 // Animation logic
-                const duration = 1500; // 1.5 seconds
+                const duration = isChatMessage ? 3000 : 1500; // Longer duration for chat
                 const floatHeight = 2; // How high it floats
                 const startTime = Date.now();
 
@@ -1404,6 +1412,18 @@
                         break;
 
                     case 'chat_message':
+                        // Find the player who sent the message
+                        let chatTargetPlayer = null;
+                        if (data.playerId === clientId) {
+                            chatTargetPlayer = player; // It's the local player
+                        } else if (otherPlayers.has(data.playerId)) {
+                            chatTargetPlayer = otherPlayers.get(data.playerId).cow;
+                        }
+
+                        if (chatTargetPlayer) {
+                            showFloatingMessage(chatTargetPlayer, data.text, true);
+                        }
+                        // Also add it to the chat box
                         addChatMessage(data);
                         break;
 
@@ -1428,15 +1448,15 @@
                         }
                         
                         // Show floating message
-                        let targetPlayer = null;
+                        let hayTargetPlayer = null;
                         if (data.playerId === clientId) {
-                            targetPlayer = player; // It's the local player
+                            hayTargetPlayer = player; // It's the local player
                         } else if (otherPlayers.has(data.playerId)) {
-                            targetPlayer = otherPlayers.get(data.playerId).cow;
+                            hayTargetPlayer = otherPlayers.get(data.playerId).cow;
                         }
                         
-                        if (targetPlayer) {
-                            showFloatingMessage(targetPlayer, '+1 Hay');
+                        if (hayTargetPlayer) {
+                            showFloatingMessage(hayTargetPlayer, '+1 Hay');
                         }
                         break;
 
