@@ -58,6 +58,11 @@ jobs:
       run: |
         gcloud container clusters get-credentials the-cow-game-cluster --region ${{ env.REGION }} --project ${{ env.PROJECT_ID }}
 
+    - name: Create credentials file for Terraform
+      run: |
+        mkdir -p ../../credentials
+        echo '${{ secrets.GCP_SA_KEY }}' > ../../credentials/thecowgame-clustermanager.json
+
     - name: Terraform init
       working-directory: infra
       run: terraform init
