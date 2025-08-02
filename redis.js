@@ -8,15 +8,14 @@ console.log(`Connecting to Redis at ${redisHost}:${redisPort}`);
 
 // Redis v4+ uses a different configuration format
 const client = redis.createClient({
+    // Add a ping interval to keep the connection alive
+    pingInterval: 5000,
     socket: {
         host: redisHost,
         port: redisPort,
-        reconnectStrategy: (retries) => {
-            if (retries > 10) {
-                return new Error('Too many retry attempts');
-            }
-            return Math.min(retries * 100, 3000);
-        }
+        // Add a connection timeout
+        connectTimeout: 5000
+        // By removing the custom reconnectStrategy, we use the robust default
     }
 });
 
