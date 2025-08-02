@@ -1429,10 +1429,10 @@
                         
                         // Show floating message
                         let targetPlayer = null;
-                        if (data.clientId === clientId) {
+                        if (data.playerId === clientId) {
                             targetPlayer = player; // It's the local player
-                        } else if (otherPlayers.has(data.clientId)) {
-                            targetPlayer = otherPlayers.get(data.clientId).cow;
+                        } else if (otherPlayers.has(data.playerId)) {
+                            targetPlayer = otherPlayers.get(data.playerId).cow;
                         }
                         
                         if (targetPlayer) {
