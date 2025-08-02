@@ -1,12 +1,12 @@
 name: Deploy to GCP (Main Branch)
 
 on:
+  workflow_dispatch: # Allow manual runs
   push:
     branches: [ main ]
-    paths-ignore:
-      - 'infra/**'
-      - '.github/workflows/pr-pods.yaml' # Ignore changes to PR workflow
-      - '.github/actions/**' # Ignore changes to actions
+    paths:
+      - '**.html'
+      - '**.js'
 
 env:
   PROJECT_ID: thecowgame
