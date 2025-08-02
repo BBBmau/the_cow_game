@@ -318,13 +318,12 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script type="module">
         import { createCow, updateCowMovement } from './cow.js';
-        
+        import { initializeUI, addChatMessage, updateLeaderboard, isLeaderboardActive } from './ui.js';
+
         let username = '';
         let cowColor = '#ffffff';
         let gameStarted = false;
-        let isChatActive = false;
 
-        let isLeaderboardActive = false;
         let globalStats = {
             totalPlayers: 0,
             totalHayEaten: 0,
@@ -335,438 +334,58 @@
             experience: 0,
             hayEaten: 0,
             timePlayed: 0,
+            coins: 0
         };
         let otherPlayers = new Map();
         
-        // Handle login form
-        const loginScreen = document.getElementById('loginScreen');
-        const usernameInput = document.getElementById('usernameInput');
-        const passwordInput = document.getElementById('passwordInput');
-        const cowColorInput = document.getElementById('cowColor');
-        const startButton = document.getElementById('startButton');
-        const chatInput = document.getElementById('chatInput');
-        const chatMessages = document.getElementById('chatMessages');
-
-        function addChatMessage(message, type = 'user') {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'chat-message';
-            
-            if (type === 'system') {
-                messageDiv.innerHTML = `<span class="chat-system">${message}</span>`;
-            } else {
-                messageDiv.innerHTML = `<span class="chat-username">${message.username}:</span> ${message.text}`;
-            }
-            
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        // Handle chat activation/deactivation
-        function handleChatKeydown(e) {
-            if (!gameStarted) return; // Don't handle chat keys during login
-            
-            if (e.key.toLowerCase() === 't' && !isChatActive) {
-                e.preventDefault(); // Prevent 't' from being typed in chat
-                isChatActive = true;
-                chatInput.focus();
-                chatInput.style.background = 'rgba(255, 255, 255, 1)';
-                // Show mouse cursor when chat is active
-                if (document.pointerLockElement === document.body) {
-                    document.exitPointerLock();
-                }
-            } else if (e.key === 'Escape' && isChatActive) {
-                isChatActive = false;
-                chatInput.blur();
-                chatInput.style.background = 'rgba(255, 255, 255, 0.9)';
-            }
-        }
-
-        // Prevent game controls when chat is active
-        function handleGameKeydown(e) {
-            if (!gameStarted) return; // Don't handle game keys during login
-            
-            if (isChatActive && e.key.toLowerCase() !== 'escape') {
-                e.stopPropagation();
-            }
-        }
-
-        function handleChatKeypress(e) {
-            if (!gameStarted) return; // Don't handle chat input during login
-            
-            if (e.key === 'Enter' && chatInput.value.trim()) {
-                e.preventDefault();
-                const message = chatInput.value.trim();
-                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-                    window.ws.send(JSON.stringify({
-                        type: 'chat_message',
-                        text: message
-                    }));
-                }
-                chatInput.value = '';
-                isChatActive = false;
-                chatInput.blur();
-                chatInput.style.background = 'rgba(255, 255, 255, 0.9)';
-            }
-        }
-
-        function handleChatBlur() {
-            isChatActive = false;
-            chatInput.style.background = 'rgba(255, 255, 255, 0.9)';
-        }
-
-        function handleStatsKeydown(e) {
-            if (e.key === 'Tab') {
-                // Only allow leaderboard if game has started
-                if (!gameStarted) {
-                    // Don't prevent default - allow normal form navigation
-                    return;
-                }
-                
-                // In game - prevent default and toggle leaderboard
-                e.preventDefault();
-                toggleLeaderboard();
-            }
-            
-            // ESC key to unlock mouse
-            if (e.key === 'Escape') {
-                if (document.pointerLockElement === document.body) {
-                    document.exitPointerLock();
-                }
-            }
-        }
+        async function startGame(newUsername, password, newCowColor) {
+            username = newUsername.trim();
+            const pass = password.trim();
         
-        function toggleLeaderboard() {
-            isLeaderboardActive = !isLeaderboardActive;
-            const leaderboard = document.getElementById('leaderboard');
-            
-            if (isLeaderboardActive) {
-                console.log('=== OPENING LEADERBOARD ===');
-                console.log('Pointer lock element before:', document.pointerLockElement);
-                console.log('Is pointer locked?', !!document.pointerLockElement);
-                
-                leaderboard.style.display = 'block';
-                updateLeaderboard();
-                
-                // Try to exit pointer lock
-                if (document.pointerLockElement) {
-                    console.log('Attempting to exit pointer lock...');
-                    document.exitPointerLock();
-                }
-                
-                // Check status after a short delay
-                setTimeout(() => {
-                    console.log('Pointer lock element after exit:', document.pointerLockElement);
-                    console.log('Is pointer still locked?', !!document.pointerLockElement);
-                    if (document.pointerLockElement) {
-                        console.log('Pointer lock still active, trying again...');
-                        document.exitPointerLock();
-                    }
-                }, 50);
-                
-                document.body.style.cursor = 'default';
-                document.body.style.pointerEvents = 'auto';
-                leaderboard.style.pointerEvents = 'auto';
-                
-                // Add CSS class to show cursor
-                document.body.classList.add('leaderboard-active');
-                
-                // Prevent any new pointer lock attempts
-                document.addEventListener('click', preventPointerLock, true);
-                
-                console.log('Leaderboard opened, cursor should be visible');
-                
-            } else {
-                console.log('=== CLOSING LEADERBOARD ===');
-                leaderboard.style.display = 'none';
-                
-                // Re-enable normal pointer behavior
-                document.body.style.pointerEvents = 'auto';
-                document.body.classList.remove('leaderboard-active');
-                
-                // Remove pointer lock prevention
-                document.removeEventListener('click', preventPointerLock, true);
-                
-                // Automatically lock mouse back in for camera control
-                setTimeout(() => {
-                    if (!document.pointerLockElement) {
-                        console.log('Re-locking mouse for camera control...');
-                        document.body.requestPointerLock();
-                    }
-                }, 100);
-            }
-        }
-        
-        function preventPointerLock(event) {
-            if (isLeaderboardActive) {
-                event.preventDefault();
-                event.stopPropagation();
-                return false;
-            }
-        }
-        
-        function closeLeaderboard() {
-            isLeaderboardActive = false;
-            document.getElementById('leaderboard').style.display = 'none';
-        }
-        
-        function updateLeaderboard() {
-            updatePlayerStatsSection();
-            updateGlobalStatsSection();
-            updateOnlinePlayersSection();
-        }
-        
-        function updatePlayerStatsSection() {
-            const playerStatsGrid = document.getElementById('playerStatsGrid');
-            const expToNextLevel = 100 - (playerStats.experience % 100);
-            console.log('Updating player stats section with:', playerStats);
-            
-            playerStatsGrid.innerHTML = `
-                <div class="stat-item">
-                    <div class="stat-label">Level</div>
-                    <div class="stat-value">${playerStats.level}</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Experience</div>
-                    <div class="stat-value">${playerStats.experience}</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Next Level</div>
-                    <div class="stat-value">${expToNextLevel} XP</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Hay Eaten</div>
-                    <div class="stat-value">${playerStats.hayEaten}</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Time Played</div>
-                    <div class="stat-value">${Math.floor(playerStats.timePlayed / 60)}m ${playerStats.timePlayed % 60}s</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Coins</div>
-                    <div class="stat-value">${playerStats.coins || 0}</div>
-                </div>
-            `;
-        }
-        
-        function updateGlobalStatsSection() {
-            const globalStatsGrid = document.getElementById('globalStatsGrid');
-            // Use the actual server start time from global stats, not the client's time
-            const serverUptime = globalStats.serverStartTime ? 
-                Math.floor((Date.now() - globalStats.serverStartTime) / 1000) : 0;
-            console.log('Updating global stats section with:', globalStats, 'Server uptime:', serverUptime);
-            
-            globalStatsGrid.innerHTML = `
-                <div class="stat-item">
-                    <div class="stat-label">Total Players</div>
-                    <div class="stat-value">${globalStats.totalPlayers}</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Total Hay Eaten</div>
-                    <div class="stat-value">${globalStats.totalHayEaten}</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Server Uptime</div>
-                    <div class="stat-value">${Math.floor(serverUptime / 60)}m ${serverUptime % 60}s</div>
-                </div>
-            `;
-        }
-        
-        function updateOnlinePlayersSection() {
-            const onlinePlayersList = document.getElementById('onlinePlayersList');
-            const players = Array.from(otherPlayers.values());
-            
-            // Add current player to the list
-            players.unshift({
-                username: username,
-                level: playerStats.level,
-                hayEaten: playerStats.hayEaten,
-                isCurrentPlayer: true
-            });
-            
-            // Sort by level (highest first), then by hay eaten
-            players.sort((a, b) => {
-                const aLevel = a.level || 1;
-                const bLevel = b.level || 1;
-                const aHay = a.hayEaten || 0;
-                const bHay = b.hayEaten || 0;
-                
-                if (bLevel !== aLevel) {
-                    return bLevel - aLevel;
-                }
-                return bHay - aHay;
-            });
-            
-            onlinePlayersList.innerHTML = players.map((player, index) => `
-                <div class="player-item">
-                    <div class="player-name">
-                        ${index + 1}. ${player.username} ${player.isCurrentPlayer ? '(You)' : ''}
-                    </div>
-                    <div class="player-stats">
-                        Level ${player.level || 1} / ${player.hayEaten || 0} hay
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // Add event listeners for chat
-        document.addEventListener('keydown', handleChatKeydown);
-        document.addEventListener('keydown', handleGameKeydown);
-        document.addEventListener('keydown', handleStatsKeydown);
-        chatInput.addEventListener('keypress', handleChatKeypress);
-        chatInput.addEventListener('blur', handleChatBlur);
-
-        // Update cow color when changed
-        cowColorInput.addEventListener('input', (e) => {
-            cowColor = e.target.value;
-        });
-
-        startButton.addEventListener('click', async () => {
-            username = usernameInput.value.trim();
-            const password = passwordInput.value.trim();
-            
             if (!username) {
                 alert('Please enter a username!');
                 return;
             }
-
-            // Check if username is taken (for guest users)
-            if (!password && usernameStatus.textContent.includes('already taken')) {
-                alert('This username is already registered. Please choose a different name or enter your password.');
-                return;
-            }
-            
-            // Disable button during authentication/connection
-            startButton.disabled = true;
-            startButton.textContent = password ? 'Authenticating...' : 'Connecting...';
-            
-            try {
-                if (password) {
-                    // Account mode - authenticate with server
-                    const authResult = await authenticateUser(username, password);
-                    if (authResult.success) {
-                        cowColor = cowColorInput.value;
-                        loginScreen.classList.add('hidden');
-                        gameStarted = true;
-                        initGame();
-                    } else {
-                        alert(authResult.message || 'Authentication failed!');
-                    }
-                } else {
-                    // Guest mode - skip authentication
-                    authInfo = {
-                        isAuthenticated: false,
-                        username: null,
-                        password: null
-                    };
-                    cowColor = cowColorInput.value;
-                    loginScreen.classList.add('hidden');
-                    gameStarted = true;
-                    initGame();
-                }
-            } catch (error) {
-                alert('Connection error. Please try again.');
-                console.error('Auth error:', error);
-            } finally {
-                startButton.disabled = false;
-                startButton.textContent = 'Start Playing';
-            }
-        });
-
-        // Handle Enter key on both username and password inputs
-        usernameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                passwordInput.focus();
-            }
-        });
         
-        passwordInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                startButton.click();
-            }
-        });
-
-        // Real-time username availability checker
-        let usernameCheckTimeout;
-        const usernameStatus = document.createElement('div');
-        usernameStatus.id = 'usernameStatus';
-        usernameStatus.style.cssText = `
-            margin-top: 5px;
-            font-size: 12px;
-            min-height: 16px;
-        `;
-        usernameInput.parentNode.insertBefore(usernameStatus, usernameInput.nextSibling);
-
-        usernameInput.addEventListener('input', (e) => {
-            const username = e.target.value.trim();
-            
-            // Clear previous timeout
-            if (usernameCheckTimeout) {
-                clearTimeout(usernameCheckTimeout);
+            // Set auth info based on whether a password was provided
+            if (pass) {
+                const authResult = await authenticateUser(username, pass);
+                if (!authResult.success) {
+                    alert(authResult.message || 'Authentication failed!');
+                    return; // Stop if auth fails
+                }
+            } else {
+                authInfo = {
+                    isAuthenticated: false,
+                    username: null,
+                    password: null
+                };
             }
             
-            // Clear status if username is empty
-            if (!username) {
-                usernameStatus.textContent = '';
-                usernameStatus.style.color = '';
-                return;
-            }
-            
-            // Show checking status
-            usernameStatus.textContent = 'Checking availability...';
-            usernameStatus.style.color = '#888';
-            
-            // Debounce the check
-            usernameCheckTimeout = setTimeout(() => {
-                checkUsernameAvailability(username);
-            }, 500);
-        });
-
-        function checkUsernameAvailability(username) {
-            console.log('Checking username availability for:', username);
-            
-            // Add timeout to the fetch request
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-            
-            // Use a simple fetch request instead of WebSocket for username checking
-            fetch('/check-username', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ username: username }),
-                signal: controller.signal
-            })
-            .then(response => {
-                clearTimeout(timeoutId);
-                console.log('Username check response status:', response.status);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Username check response:', data);
-                if (data.available) {
-                    usernameStatus.textContent = 'Username available';
-                    usernameStatus.style.color = '#4CAF50';
-                } else {
-                    usernameStatus.textContent = 'Username already taken';
-                    usernameStatus.style.color = '#f44336';
-                }
-            })
-            .catch(error => {
-                clearTimeout(timeoutId);
-                console.error('Username check error:', error);
-                if (error.name === 'AbortError') {
-                    usernameStatus.textContent = 'Check timeout - server may be busy';
-                } else {
-                    usernameStatus.textContent = 'Error checking username';
-                }
-                usernameStatus.style.color = '#ff9800';
-            });
+            // Set color after potential auth, so it's not lost
+            cowColor = newCowColor;
+        
+            document.getElementById('loginScreen').classList.add('hidden');
+            gameStarted = true;
+            initGame(); // Call initGame without arguments
         }
-        
+
+        initializeUI({
+            onStartGame: startGame,
+            onCowColorChange: (newColor) => { cowColor = newColor; },
+            onSendMessage: (message) => {
+                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({ type: 'chat_message', text: message }));
+                }
+            }
+        }, () => ({
+            gameStarted,
+            playerStats,
+            globalStats,
+            otherPlayers,
+            username
+        }));
+
         // Store authentication info for use in initGame
         let authInfo = {
             isAuthenticated: false,
@@ -805,7 +424,7 @@
                     alert('Connection timeout. Please try again.');
                     // Reset to login screen
                     gameStarted = false;
-                    loginScreen.classList.remove('hidden');
+                    document.getElementById('loginScreen').classList.remove('hidden');
                 }
             }, 10000); // 10 second timeout
 
@@ -1328,7 +947,7 @@
                 alert('Connection error. Please check your internet connection and try again.');
                 // Reset to login screen
                 gameStarted = false;
-                loginScreen.classList.remove('hidden');
+                document.getElementById('loginScreen').classList.remove('hidden');
             };
 
             // WebSocket close handler
@@ -1345,7 +964,7 @@
                 // Reset to login screen if game was started
                 if (gameStarted) {
                     gameStarted = false;
-                    loginScreen.classList.remove('hidden');
+                    document.getElementById('loginScreen').classList.remove('hidden');
                 }
             };
 
@@ -1400,7 +1019,7 @@
                         
                         // Update leaderboard if it's open
                         if (isLeaderboardActive) {
-                            updateLeaderboard();
+                            updateLeaderboard(playerStats, globalStats, otherPlayers, username);
                         }
                         
                         // Create other players that are already in the game
@@ -1427,7 +1046,7 @@
                         createOtherPlayer(data);
                         addChatMessage(`${data.username} joined the game`, 'system');
                         if (isLeaderboardActive) {
-                            updateLeaderboard();
+                            updateLeaderboard(playerStats, globalStats, otherPlayers, username);
                         }
                         break;
 
@@ -1469,7 +1088,7 @@
                         removeOtherPlayer(data.id);
                         addChatMessage(`${data.username} left the game`, 'system');
                         if (isLeaderboardActive) {
-                            updateLeaderboard();
+                            updateLeaderboard(playerStats, globalStats, otherPlayers, username);
                         }
                         break;
 
@@ -1532,7 +1151,7 @@
                         console.log('Stats updated:', data.stats);
                         playerStats = { ...playerStats, ...data.stats };
                         if (isLeaderboardActive) {
-                            updateLeaderboard();
+                            updateLeaderboard(playerStats, globalStats, otherPlayers, username);
                         }
                         break;
 
@@ -1545,7 +1164,7 @@
                         console.log('Global stats updated:', data.globalStats);
                         globalStats = { ...globalStats, ...data.globalStats };
                         if (isLeaderboardActive) {
-                            updateLeaderboard();
+                            updateLeaderboard(playerStats, globalStats, otherPlayers, username);
                         }
                         break;
                         
@@ -1561,7 +1180,7 @@
                             
                             // Update leaderboard if it's open
                             if (isLeaderboardActive) {
-                                updateLeaderboard();
+                                updateLeaderboard(playerStats, globalStats, otherPlayers, username);
                             }
                         }
                         break;
@@ -1742,7 +1361,7 @@
                 
                 // Update leaderboard every 5 seconds if open
                 if (isLeaderboardActive && currentTime - lastLeaderboardUpdate >= 5000) {
-                    updateLeaderboard();
+                    updateLeaderboard(playerStats, globalStats, otherPlayers, username);
                     lastLeaderboardUpdate = currentTime;
                 }
 
