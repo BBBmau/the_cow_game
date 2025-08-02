@@ -3,6 +3,7 @@
 // --- State ---
 export let isChatActive = false;
 export let isLeaderboardActive = false;
+let isCustomizationActive = false;
 
 // --- DOM Elements ---
 const chatMessages = document.getElementById('chatMessages');
@@ -11,6 +12,9 @@ const leaderboard = document.getElementById('leaderboard');
 const playerStatsGrid = document.getElementById('playerStatsGrid');
 const globalStatsGrid = document.getElementById('globalStatsGrid');
 const onlinePlayersList = document.getElementById('onlinePlayersList');
+const customizationScreen = document.getElementById('customizationScreen');
+const customCowColorInput = document.getElementById('customCowColor');
+const saveCustomizationButton = document.getElementById('saveCustomizationButton');
 
 // --- Helper Functions ---
 
@@ -80,6 +84,23 @@ function preventPointerLock(event) {
     }
 }
 
+function toggleCustomizationScreen(getState, show) {
+    isCustomizationActive = show;
+    customizationScreen.classList.toggle('hidden', !show);
+
+    if (show) {
+        const { cowColor } = getState();
+        customCowColorInput.value = cowColor; // Set current color
+        if (document.pointerLockElement) document.exitPointerLock();
+    } else {
+        // Re-lock pointer if appropriate
+        const { gameStarted } = getState();
+        if (gameStarted && !isLeaderboardActive && !document.pointerLockElement) {
+            document.body.requestPointerLock();
+        }
+    }
+}
+
 function toggleLeaderboard(playerStats, globalStats, otherPlayers, username, getState) {
     isLeaderboardActive = !isLeaderboardActive;
     if (isLeaderboardActive) {
@@ -137,11 +158,15 @@ export function initializeUI(callbacks, getState) {
     const startButton = document.getElementById('startButton');
 
     startButton.addEventListener('click', () => {
-        callbacks.onStartGame(usernameInput.value, passwordInput.value, cowColorInput.value);
+        callbacks.onStartGame(usernameInput.value, passwordInput.value, customCowColorInput.value);
     });
-    cowColorInput.addEventListener('input', (e) => {
-        callbacks.onCowColorChange(e.target.value);
+
+    saveCustomizationButton.addEventListener('click', () => {
+        const newColor = customCowColorInput.value;
+        callbacks.onCowColorChange(newColor);
+        toggleCustomizationScreen(getState, false); // Close screen after saving
     });
+    
     usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') passwordInput.focus(); });
     passwordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') startButton.click(); });
 
@@ -186,9 +211,15 @@ export function initializeUI(callbacks, getState) {
             e.stopPropagation();
         }
 
-        // General mouse unlock
+        // General mouse unlock and customization screen toggle
         if (e.key === 'Escape') {
-            if (document.pointerLockElement === document.body) document.exitPointerLock();
+            if (isCustomizationActive) {
+                toggleCustomizationScreen(getState, false);
+            } else if (state.gameStarted && !isChatActive && !isLeaderboardActive) {
+                toggleCustomizationScreen(getState, true);
+            } else {
+                if (document.pointerLockElement === document.body) document.exitPointerLock();
+            }
         }
     });
 
@@ -214,7 +245,7 @@ export function initializeUI(callbacks, getState) {
 
     document.addEventListener('click', (event) => {
         const { gameStarted } = getState();
-        if (!gameStarted || event.target.closest('#leaderboard, #chatContainer, #players, #coordinates, #debugView') || isLeaderboardActive) {
+        if (!gameStarted || event.target.closest('#leaderboard, #customizationScreen, #chatContainer, #players, #coordinates, #debugView') || isLeaderboardActive || isCustomizationActive) {
             return;
         }
         if (!document.pointerLockElement) document.body.requestPointerLock();
