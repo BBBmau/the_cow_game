@@ -886,61 +886,137 @@
                 nameLabel.position.y = 3;  // Raised position for better visibility
             }
 
-            function showFloatingMessage(targetObject, text) {
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                canvas.width = 256;
-                canvas.height = 128;
+            // Map to track active speech bubbles to ensure only one is shown per player
+            const activeSpeechBubbles = new Map();
 
-                context.font = 'Bold 48px Arial';
-                context.textAlign = 'center';
-                context.textBaseline = 'middle';
+            function showInWorldText(targetObject, text, type, ownerId) {
+                // For speech bubbles, manage timers and existing bubbles
+                if (type === 'speech') {
+                    const bubbles = activeSpeechBubbles.get(ownerId) || [];
 
-                // Outline for visibility
-                context.strokeStyle = 'black';
-                context.lineWidth = 6;
-                context.strokeText(text, canvas.width / 2, canvas.height / 2);
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const font = '32px Arial';
+                    ctx.font = font;
+                    const textMetrics = ctx.measureText(text);
 
-                // Green fill color
-                context.fillStyle = '#00FF00'; // Bright green
-                context.fillText(text, canvas.width / 2, canvas.height / 2);
+                    const padding = 20;
+                    const bubbleWidth = textMetrics.width + (padding * 2);
+                    const bubbleHeight = 32 + (padding * 2);
+                    const tailHeight = 20;
 
-                const texture = new THREE.CanvasTexture(canvas);
-                const material = new THREE.SpriteMaterial({ 
-                    map: texture, 
-                    transparent: true, 
-                    depthTest: false 
-                });
-                const sprite = new THREE.Sprite(material);
-                sprite.scale.set(2, 1, 1);
+                    canvas.width = bubbleWidth;
+                    canvas.height = bubbleHeight + tailHeight;
 
-                // Position it above the target object
-                const startPosition = targetObject.position.clone();
-                sprite.position.copy(startPosition).y += 3; // Start above the cow
-                scene.add(sprite);
+                    const x = 0, y = 0;
+                    const width = bubbleWidth, height = bubbleHeight;
+                    const radius = 15;
 
-                // Animation logic
-                const duration = 1500; // 1.5 seconds
-                const floatHeight = 2; // How high it floats
-                const startTime = Date.now();
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(x + radius, y);
+                    ctx.lineTo(x + width - radius, y);
+                    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+                    ctx.lineTo(x + width, y + height - radius);
+                    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                    ctx.lineTo(x + radius, y + height);
+                    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+                    ctx.lineTo(x, y + radius);
+                    ctx.quadraticCurveTo(x, y, x + radius, y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
 
-                function animateMessage() {
-                    const elapsed = Date.now() - startTime;
-                    const progress = elapsed / duration;
+                    ctx.beginPath();
+                    ctx.moveTo(width / 2 - 15, height - 2);
+                    ctx.lineTo(width / 2, height + tailHeight);
+                    ctx.lineTo(width / 2 + 15, height - 2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
 
-                    if (progress < 1) {
-                        sprite.position.y = startPosition.y + 3 + (progress * floatHeight);
-                        sprite.material.opacity = 1.0 - progress;
-                        requestAnimationFrame(animateMessage);
-                    } else {
-                        scene.remove(sprite);
-                        // Dispose of texture and material to free up memory
-                        texture.dispose();
-                        material.dispose();
+                    ctx.fillStyle = 'black';
+                    ctx.font = font;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(text, width / 2, height / 2);
+
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+                    const sprite = new THREE.Sprite(material);
+                    const spriteHeight = canvas.height / 100;
+                    sprite.scale.set(bubbleWidth / 100, spriteHeight, 1.0);
+                    
+                    scene.add(sprite);
+
+                    const newBubble = {
+                        sprite: sprite,
+                        texture: texture,
+                        material: material,
+                        target: targetObject,
+                        creationTime: Date.now(),
+                        height: spriteHeight
+                    };
+
+                    bubbles.push(newBubble);
+
+                    // Limit to 3 bubbles per player
+                    if (bubbles.length > 3) {
+                        const oldestBubble = bubbles.shift(); // Remove the oldest bubble
+                        scene.remove(oldestBubble.sprite);
+                        oldestBubble.texture.dispose();
+                        oldestBubble.material.dispose();
                     }
-                }
 
-                animateMessage();
+                    activeSpeechBubbles.set(ownerId, bubbles);
+
+                } else { // 'floating' type for hay
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = 256;
+                    canvas.height = 128;
+
+                    context.font = 'Bold 48px Arial';
+                    context.textAlign = 'center';
+                    context.textBaseline = 'middle';
+                    context.strokeStyle = 'black';
+                    context.lineWidth = 6;
+                    context.strokeText(text, canvas.width / 2, canvas.height / 2);
+                    context.fillStyle = '#00FF00';
+                    context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+                    const sprite = new THREE.Sprite(material);
+                    sprite.scale.set(2, 1, 1);
+
+                    const startPosition = targetObject.position.clone();
+                    sprite.position.copy(startPosition).y += 3;
+                    scene.add(sprite);
+
+                    const duration = 1500;
+                    const floatHeight = 2;
+                    const startTime = Date.now();
+
+                    function animateMessage() {
+                        const elapsed = Date.now() - startTime;
+                        const progress = elapsed / duration;
+
+                        if (progress < 1) {
+                            sprite.position.y = startPosition.y + 3 + (progress * floatHeight);
+                            sprite.material.opacity = 1.0 - progress;
+                            requestAnimationFrame(animateMessage);
+                        } else {
+                            scene.remove(sprite);
+                            texture.dispose();
+                            material.dispose();
+                        }
+                    }
+
+                    animateMessage();
+                }
             }
 
             // Create player character with custom color
@@ -1404,6 +1480,18 @@
                         break;
 
                     case 'chat_message':
+                        // Find the player who sent the message
+                        let chatTargetPlayer = null;
+                        if (data.playerId === clientId) {
+                            chatTargetPlayer = player; // It's the local player
+                        } else if (otherPlayers.has(data.playerId)) {
+                            chatTargetPlayer = otherPlayers.get(data.playerId).cow;
+                        }
+
+                        if (chatTargetPlayer) {
+                            showInWorldText(chatTargetPlayer, data.text, 'speech', data.playerId);
+                        }
+                        // Also add it to the chat box
                         addChatMessage(data);
                         break;
 
@@ -1428,15 +1516,15 @@
                         }
                         
                         // Show floating message
-                        let targetPlayer = null;
+                        let hayTargetPlayer = null;
                         if (data.playerId === clientId) {
-                            targetPlayer = player; // It's the local player
+                            hayTargetPlayer = player; // It's the local player
                         } else if (otherPlayers.has(data.playerId)) {
-                            targetPlayer = otherPlayers.get(data.playerId).cow;
+                            hayTargetPlayer = otherPlayers.get(data.playerId).cow;
                         }
                         
-                        if (targetPlayer) {
-                            showFloatingMessage(targetPlayer, '+1 Hay');
+                        if (hayTargetPlayer) {
+                            showInWorldText(hayTargetPlayer, '+1 Hay', 'floating', data.playerId);
                         }
                         break;
 
@@ -1610,6 +1698,40 @@
 
                 // Check for hay collisions
                 checkHayCollision();
+
+                // Update speech bubble positions
+                const BUBBLE_LIFESPAN = 5000; // 5 seconds
+                const BUBBLE_STACK_GAP = 0.2;
+
+                activeSpeechBubbles.forEach((bubbles, ownerId) => {
+                    let currentYOffset = 3.5;
+                    
+                    // Iterate backwards to safely remove bubbles
+                    for (let i = bubbles.length - 1; i >= 0; i--) {
+                        const bubble = bubbles[i];
+                        const age = Date.now() - bubble.creationTime;
+
+                        if (age > BUBBLE_LIFESPAN) {
+                            // Remove the bubble
+                            scene.remove(bubble.sprite);
+                            bubble.texture.dispose();
+                            bubble.material.dispose();
+                            bubbles.splice(i, 1);
+                        } else {
+                            // Update position
+                            bubble.sprite.position.copy(bubble.target.position);
+                            bubble.sprite.position.y += currentYOffset;
+                            
+                            // Move the next bubble up
+                            currentYOffset += bubble.height + BUBBLE_STACK_GAP;
+                        }
+                    }
+
+                    // If no bubbles are left for this owner, remove the entry from the map
+                    if (bubbles.length === 0) {
+                        activeSpeechBubbles.delete(ownerId);
+                    }
+                });
 
                 // Update time played every second
                 const currentTime = Date.now();
