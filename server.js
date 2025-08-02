@@ -730,7 +730,7 @@ wss.on('connection', async (ws) => {
                         if (player) {
                             broadcastToAll({
                                 type: 'hay_collected',
-                                playerId: clientId,
+                                playerId: clientId, // Use clientId to identify the player
                                 username: player.username,
                                 hayId: hayId,
                                 position: data.position

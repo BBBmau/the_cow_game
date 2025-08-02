@@ -886,6 +886,63 @@
                 nameLabel.position.y = 3;  // Raised position for better visibility
             }
 
+            function showFloatingMessage(targetObject, text) {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = 256;
+                canvas.height = 128;
+
+                context.font = 'Bold 48px Arial';
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+
+                // Outline for visibility
+                context.strokeStyle = 'black';
+                context.lineWidth = 6;
+                context.strokeText(text, canvas.width / 2, canvas.height / 2);
+
+                // Green fill color
+                context.fillStyle = '#00FF00'; // Bright green
+                context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+                const texture = new THREE.CanvasTexture(canvas);
+                const material = new THREE.SpriteMaterial({ 
+                    map: texture, 
+                    transparent: true, 
+                    depthTest: false 
+                });
+                const sprite = new THREE.Sprite(material);
+                sprite.scale.set(2, 1, 1);
+
+                // Position it above the target object
+                const startPosition = targetObject.position.clone();
+                sprite.position.copy(startPosition).y += 3; // Start above the cow
+                scene.add(sprite);
+
+                // Animation logic
+                const duration = 1500; // 1.5 seconds
+                const floatHeight = 2; // How high it floats
+                const startTime = Date.now();
+
+                function animateMessage() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = elapsed / duration;
+
+                    if (progress < 1) {
+                        sprite.position.y = startPosition.y + 3 + (progress * floatHeight);
+                        sprite.material.opacity = 1.0 - progress;
+                        requestAnimationFrame(animateMessage);
+                    } else {
+                        scene.remove(sprite);
+                        // Dispose of texture and material to free up memory
+                        texture.dispose();
+                        material.dispose();
+                    }
+                }
+
+                animateMessage();
+            }
+
             // Create player character with custom color
             const player = createCow(cowColor);
             player.position.y = 0;
@@ -1369,7 +1426,18 @@
                                 hayPositions.splice(hayIndex, 1);
                             }
                         }
-                        addChatMessage(`${data.username} collected some hay!`, 'system');
+                        
+                        // Show floating message
+                        let targetPlayer = null;
+                        if (data.playerId === clientId) {
+                            targetPlayer = player; // It's the local player
+                        } else if (otherPlayers.has(data.playerId)) {
+                            targetPlayer = otherPlayers.get(data.playerId).cow;
+                        }
+                        
+                        if (targetPlayer) {
+                            showFloatingMessage(targetPlayer, '+1 Hay');
+                        }
                         break;
 
                     case 'stats_updated':
