@@ -17,11 +17,9 @@ env:
   IMAGE_NAME: mmo-server
 
 jobs:
-  build-image:
+  build-and-deploy-pr:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
-    outputs:
-      image-sha: ${{ steps.docker-build.outputs.short_sha }}
     
     steps:
     - name: Checkout
@@ -48,24 +46,6 @@ jobs:
         repository: ${{ env.REPOSITORY }}
         image_name: ${{ env.IMAGE_NAME }}
         image_sha: ${{ github.event.pull_request.head.sha }}
-
-  deploy-pr-pods:
-    if: github.event.action != 'closed'
-    needs: build-image
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
-        project_id: ${{ env.PROJECT_ID }}
-
-    - name: Setup gcloud CLI
-      uses: google-github-actions/setup-gcloud@v2
 
     - name: Install GKE Auth Plugin
       run: |
@@ -97,7 +77,7 @@ jobs:
         cat > terraform.tfvars <<EOF
         project_id = "${{ env.PROJECT_ID }}"
         region = "${{ env.REGION }}"
-        image_sha = "${{ needs.build-image.outputs.image-sha }}"
+        image_sha = "${{ steps.docker-build.outputs.short_sha }}"
         environment = "pr-${{ github.event.number }}"
         pr_number = "${{ github.event.number }}"
         EOF
@@ -174,7 +154,7 @@ jobs:
         script: |
           const prNumber = context.payload.number;
           const commentId = "${{ steps.find-comment.outputs.result }}";
-          const imagesha = "${{ needs.build-image.outputs.image-sha }}";
+          const imagesha = "${{ steps.docker-build.outputs.short_sha }}";
           const loadBalancerIP = "${{ steps.get-info.outputs.load-balancer-ip }}";
           
           const accessSection = loadBalancerIP === "pending" ? 
@@ -243,7 +223,7 @@ jobs:
       with:
         script: |
           const prNumber = context.payload.number;
-          const imagesha = "${{ needs.build-image.outputs.image-sha }}";
+          const imagesha = "${{ steps.docker-build.outputs.short_sha }}";
           const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
           const commentId = ${{ steps.initial-comment.outputs.result }};
           const loadBalancerIP = "${{ steps.wait-for-ip.outputs.final-ip }}";
