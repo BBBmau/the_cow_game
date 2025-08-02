@@ -370,6 +370,27 @@
         };
         let otherPlayers = new Map();
         
+        // --- Core Game Variables ---
+        let player;
+        let scene;
+        
+        function updatePlayerCow(newColor) {
+            if (!player) return;
+
+            const newHexColor = new THREE.Color(newColor);
+
+            // The body is the first child (index 0), head is the second (index 1)
+            const body = player.children[0];
+            const head = player.children[1];
+
+            if (body && body.material) {
+                body.material.color.set(newHexColor);
+            }
+            if (head && head.material) {
+                head.material.color.set(newHexColor);
+            }
+        }
+
         async function startGame(newUsername, password, newCowColor) {
             username = newUsername.trim();
             const pass = password.trim();
@@ -405,19 +426,10 @@
         initializeUI({
             onStartGame: startGame,
             onCowColorChange: (newColor) => {
-                cowColor = newColor;
+                cowColor = newColor; // 1. Update state
+                updatePlayerCow(newColor); // 2. Update model's color directly
 
-                // Replace the player's cow model
-                const oldCow = player;
-                player = createCow(cowColor);
-                player.position.copy(oldCow.position);
-                player.rotation.copy(oldCow.rotation);
-                player.castShadow = true;
-                updateNameLabel(player, username); // Re-add name label
-                scene.remove(oldCow);
-                scene.add(player);
-
-                // Send update to server
+                // 3. Tell server
                 if (window.ws && window.ws.readyState === WebSocket.OPEN) {
                     window.ws.send(JSON.stringify({
                         type: 'update_color',
@@ -482,7 +494,7 @@
             }, 10000); // 10 second timeout
 
             // Set up scene, camera, and renderer
-            const scene = new THREE.Scene();
+            scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB);
             const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -692,7 +704,7 @@
             }
 
             // Create player character with custom color
-            const player = createCow(cowColor);
+            player = createCow(cowColor);
             player.position.y = 0;
             player.castShadow = true;
             scene.add(player);
