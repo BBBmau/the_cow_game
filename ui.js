@@ -94,6 +94,28 @@ function toggleCustomizationScreen(getState, show) {
     }
 }
 
+function toggleLeaderboard(playerStats, globalStats, otherPlayers, username, getState) {
+    isLeaderboardActive = !isLeaderboardActive;
+    if (isLeaderboardActive) {
+        leaderboard.style.display = 'block';
+        updateLeaderboard(playerStats, globalStats, otherPlayers, username);
+        if (document.pointerLockElement) document.exitPointerLock();
+        document.body.classList.add('leaderboard-active');
+        document.addEventListener('click', preventPointerLock, true);
+    } else {
+        leaderboard.style.display = 'none';
+        document.body.classList.remove('leaderboard-active');
+        document.removeEventListener('click', preventPointerLock, true);
+        setTimeout(() => {
+            // Only re-lock if the game has started and the leaderboard is closed
+            const { gameStarted } = getState();
+            if (gameStarted && !isLeaderboardActive && !document.pointerLockElement) {
+                document.body.requestPointerLock();
+            }
+        }, 100);
+    }
+}
+
 function checkUsernameAvailability(username, usernameStatus) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -158,16 +180,18 @@ export function initializeUI(callbacks, getState) {
     // --- Event Listeners ---
     document.addEventListener('pointerlockchange', () => {
         const { gameStarted } = getState();
-        if (!gameStarted || isLeaderboardActive || isChatActive) return;
+        if (!gameStarted) return;
 
         if (document.pointerLockElement) {
-            // Mouse was just locked, close the customization screen
+            // Mouse was just locked, close the customization screen if it's open
             if (isCustomizationActive) {
                 toggleCustomizationScreen(getState, false);
             }
         } else {
-            // Mouse was just unlocked, open the customization screen
-            toggleCustomizationScreen(getState, true);
+            // Mouse was just unlocked. Open the menu ONLY if no other menu is active.
+            if (!isLeaderboardActive && !isChatActive) {
+                toggleCustomizationScreen(getState, true);
+            }
         }
     }, false);
 
@@ -186,8 +210,7 @@ export function initializeUI(callbacks, getState) {
         if (e.key === 'Tab') {
             if (!state.gameStarted) return;
             e.preventDefault();
-            // The toggleLeaderboard function is removed, so this block is now empty.
-            // The leaderboard state will be managed directly by isLeaderboardActive.
+            toggleLeaderboard(state.playerStats, state.globalStats, state.otherPlayers, state.username, getState);
         }
 
         // Stop game keys if chat is active
@@ -209,6 +232,8 @@ export function initializeUI(callbacks, getState) {
                 chatInput.blur();
                 document.body.requestPointerLock();
             } else if (document.pointerLockElement) {
+                // This is the only place we should EXIT pointer lock via the Escape key.
+                // The pointerlockchange listener will then handle opening the menu.
                 document.exitPointerLock();
             }
         }
