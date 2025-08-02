@@ -967,7 +967,7 @@
                         }
                     }, 5000); // Remove after 5 seconds
 
-                    activeSpeechBubbles.set(ownerId, { sprite, timeoutId, texture, material });
+                    activeSpeechBubbles.set(ownerId, { sprite, timeoutId, texture, material, target: targetObject });
 
                 } else { // 'floating' type for hay
                     const canvas = document.createElement('canvas');
@@ -1695,6 +1695,11 @@
 
                 // Check for hay collisions
                 checkHayCollision();
+
+                // Update speech bubble positions
+                activeSpeechBubbles.forEach((bubble) => {
+                    bubble.sprite.position.copy(bubble.target.position).y += 3.5;
+                });
 
                 // Update time played every second
                 const currentTime = Date.now();
