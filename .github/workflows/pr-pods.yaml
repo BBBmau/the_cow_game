@@ -77,7 +77,7 @@ jobs:
         cat > terraform.tfvars <<EOF
         project_id = "${{ env.PROJECT_ID }}"
         region = "${{ env.REGION }}"
-        image_sha = "${{ steps.docker-build.outputs.short_sha }}"
+        image_sha = "${{ steps.docker-build.outputs.full_sha }}"
         environment = "pr-${{ github.event.number }}"
         pr_number = "${{ github.event.number }}"
         EOF
