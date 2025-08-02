@@ -47,6 +47,17 @@ jobs:
         image_name: ${{ env.IMAGE_NAME }}
         image_sha: ${{ github.event.pull_request.head.sha }}
 
+    - name: Create Terraform variables file
+      working-directory: ./infra/pr-pods
+      run: |
+        cat > terraform.tfvars <<EOF
+        project_id = "${{ env.PROJECT_ID }}"
+        region = "${{ env.REGION }}"
+        image_sha = "${{ steps.docker-build.outputs.full_sha }}"
+        environment = "pr-${{ github.event.number }}"
+        pr_number = "${{ github.event.number }}"
+        EOF
+
     - name: Deploy to GKE
       uses: ./.github/actions/terraform-apply
       with:
@@ -54,6 +65,7 @@ jobs:
         gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
         image_sha: ${{ steps.docker-build.outputs.full_sha }}
         working_directory: 'infra/pr-pods'
+        workspace: pr-${{ github.event.number }}
 
     - name: Get deployment info
       id: get-info

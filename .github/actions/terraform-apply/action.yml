@@ -19,6 +19,9 @@ inputs:
     description: 'The GCP region for the deployment.'
     required: false
     default: 'us-west1'
+  workspace:
+    description: 'The Terraform workspace to use.'
+    required: false
 
 outputs:
   deployment-status:
@@ -47,6 +50,17 @@ runs:
       shell: bash
       run: |
         gcloud container clusters get-credentials the-cow-game-cluster --region ${{ inputs.region }} --project ${{ inputs.gcp_project_id }}
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: terraform init
+
+    - name: Select or Create Workspace
+      if: ${{ inputs.workspace != '' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: terraform workspace select ${{ inputs.workspace }} || terraform workspace new ${{ inputs.workspace }}
 
     - name: Create credentials file for Terraform
       shell: bash
