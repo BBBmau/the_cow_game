@@ -13,37 +13,41 @@ env:
   PROJECT_ID: thecowgame
   REGION: us-west1
   REGISTRY: us-west1-docker.pkg.dev
+  REPOSITORY: game-images
+  IMAGE_NAME: mmo-server
 
 jobs:
   build-image:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     outputs:
-      image-sha: ${{ steps.build.outputs.image-sha }}
+      image-sha: ${{ steps.docker-build.outputs.short_sha }}
     
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-
+      
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         project_id: ${{ env.PROJECT_ID }}
+        
+    - name: Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
 
-    - name: Configure Docker for GCR
+    - name: Configure Docker for Artifact Registry
       run: gcloud auth configure-docker ${{ env.REGISTRY }}
 
-    - name: Build and push Docker image
-      id: build
-      run: |
-        IMAGE_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-        IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/game-images/mmo-server:${IMAGE_SHA}"
-        
-        docker build -t $IMAGE_TAG .
-        docker push $IMAGE_TAG
-        
-        echo "image-sha=${IMAGE_SHA}" >> $GITHUB_OUTPUT
+    - name: Build and Push Docker Image
+      id: docker-build
+      uses: ./.github/actions/docker-build-push
+      with:
+        registry: ${{ env.REGISTRY }}
+        project_id: ${{ env.PROJECT_ID }}
+        repository: ${{ env.REPOSITORY }}
+        image_name: ${{ env.IMAGE_NAME }}
+        image_sha: ${{ github.event.pull_request.head.sha }}
 
   deploy-pr-pods:
     if: github.event.action != 'closed'
@@ -171,21 +175,18 @@ jobs:
           const prNumber = context.payload.number;
           const commentId = "${{ steps.find-comment.outputs.result }}";
           const imagesha = "${{ needs.build-image.outputs.image-sha }}";
-          const gameserverDeployment = "${{ steps.get-info.outputs.gameserver-deployment }}";
-          const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
-          const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
           const loadBalancerIP = "${{ steps.get-info.outputs.load-balancer-ip }}";
           
           const accessSection = loadBalancerIP === "pending" ? 
             "🔄 **Status:** LoadBalancer IP is being assigned... (will update this comment when ready)" : 
-            `🎮 **Game Server:** ${loadBalancerIP}:6060`;
+            `🎮 **Game Server:** [http://play-the-cow-game-testing/PR-${prNumber}](http://${loadBalancerIP}:6060)`;
+          
+          const detailsList =
+            `*   🐋 **Commit:** \`${imagesha}\`\n` +
+            `*   📅 **Deployed:** ${new Date().toLocaleString()}`;
           
           const body = "## 🚀 PR Environment Deployed Successfully!\n\n" +
-            "| **Parameter** | **Value** |\n" +
-            "|---------------|-----------|\n" +
-            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
-            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
-            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n\n` +
+            detailsList + "\n\n" +
             "### 🌐 Access Your Environment\n" +
             accessSection + "\n\n" +
             "---\n" +
@@ -243,24 +244,22 @@ jobs:
         script: |
           const prNumber = context.payload.number;
           const imagesha = "${{ needs.build-image.outputs.image-sha }}";
-          const gameserverDeployment = "${{ steps.get-info.outputs.gameserver-deployment }}";
-          const redisDeployment = "${{ steps.get-info.outputs.redis-deployment }}";
           const gameserverService = "${{ steps.get-info.outputs.gameserver-service }}";
           const commentId = ${{ steps.initial-comment.outputs.result }};
           const loadBalancerIP = "${{ steps.wait-for-ip.outputs.final-ip }}";
           
           // Update the comment with final status
           const accessSection = loadBalancerIP === "pending" ? 
-            "⚠️ **Status:** LoadBalancer IP assignment timed out. Please check manually:\n```bash\nkubectl get service " + gameserverService + " -o jsonpath='{.status.loadBalancer.ingress[0].ip}'\n```" : 
-            `🎮 **Game Server:** ${loadBalancerIP}:6060`;
+            "⚠️ **Status:** LoadBalancer IP assignment timed out. Please check manually:\n\`\`\`bash\nkubectl get service " + gameserverService + " -o jsonpath='{.status.loadBalancer.ingress[0].ip}'\n\`\`\`" : 
+            `🎮 **Game Server:** [http://play-the-cow-game-testing/PR-${prNumber}](http://${loadBalancerIP}:6060)`;
+          
+          const detailsList =
+            `*   🐋 **Commit:** \`${imagesha}\`\n` +
+            `*   📅 **Deployed:** ${new Date().toLocaleString()}\n` +
+            `*   🌐 **IP Ready:** ${loadBalancerIP === "pending" ? "⏰ Timed out" : "✅ " + new Date().toLocaleString()}`;
           
           const updatedBody = "## 🚀 PR Environment Deployed Successfully!\n\n" +
-            "| **Parameter** | **Value** |\n" +
-            "|---------------|-----------|\n" +
-            `| 🏷️ **Environment** | \`pr-${prNumber}\` |\n` +
-            `| 🐋 **Image SHA** | \`${imagesha}\` |\n` +
-            `| 📅 **Deployed** | ${new Date().toLocaleString()} |\n` +
-            `| 🌐 **IP Ready** | ${loadBalancerIP === "pending" ? "⏰ Timed out" : "✅ " + new Date().toLocaleString()} |\n\n` +
+            detailsList + "\n\n" +
             "### 🌐 Access Your Environment\n" +
             accessSection + "\n\n" +
             "---\n" +
