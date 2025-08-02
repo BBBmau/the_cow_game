@@ -566,6 +566,23 @@ wss.on('connection', async (ws) => {
                     }
                     break;
 
+                case 'update_color':
+                    if (clients.has(clientId)) {
+                        const player = clients.get(clientId);
+                        player.color = data.color;
+                        clients.set(clientId, player);
+                        
+                        // Broadcast the color change to all other players
+                        broadcastToAll({
+                            type: 'color_update',
+                            players: [{
+                                id: clientId,
+                                color: data.color
+                            }]
+                        }, clientId); // Exclude the sender
+                    }
+                    break;
+
                 case 'chat_message':
                     // Handle chat messages
                     const chatClient = clients.get(clientId);

@@ -242,6 +242,26 @@
             margin-top: 10px;
             font-style: italic;
         }
+
+        #customizationScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1500; /* Above game, below leaderboard */
+        }
+        #customizationContainer {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -259,10 +279,6 @@
             <br>
             <input type="password" id="passwordInput" placeholder="Password (optional - for saving progress)" maxlength="50" style="padding: 10px; margin: 10px 0; width: 200px; border: 2px solid #ccc; border-radius: 5px; font-size: 16px;">
             <br>
-            <div style="margin: 10px 0;">
-                <label for="cowColor">Choose your cow's color:</label>
-                <input type="color" id="cowColor" value="#ffffff" style="margin-left: 10px;">
-            </div>
             <button id="startButton">Start Playing</button>
             <p style="font-size: 12px; color: #666; margin-top: 10px;">
                 <strong>Guest Mode:</strong> Just enter a username (progress won't be saved)<br>
@@ -314,6 +330,22 @@
             </div>
         </div>
     </div>
+
+    <!-- Customization Screen -->
+    <div id="customizationScreen" class="hidden">
+        <div id="customizationContainer">
+            <h2>Customize Your Cow</h2>
+            <div style="margin: 20px 0;">
+                <label for="customCowColor">Cow Color:</label>
+                <input type="color" id="customCowColor" value="#ffffff" style="margin-left: 10px;">
+            </div>
+            <button id="saveCustomizationButton">Save & Close</button>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                Press ESC to close without saving.
+            </p>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script type="module">
@@ -372,7 +404,27 @@
 
         initializeUI({
             onStartGame: startGame,
-            onCowColorChange: (newColor) => { cowColor = newColor; },
+            onCowColorChange: (newColor) => {
+                cowColor = newColor;
+
+                // Replace the player's cow model
+                const oldCow = player;
+                player = createCow(cowColor);
+                player.position.copy(oldCow.position);
+                player.rotation.copy(oldCow.rotation);
+                player.castShadow = true;
+                updateNameLabel(player, username); // Re-add name label
+                scene.remove(oldCow);
+                scene.add(player);
+
+                // Send update to server
+                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({
+                        type: 'update_color',
+                        color: newColor
+                    }));
+                }
+            },
             onSendMessage: (message) => {
                 if (window.ws && window.ws.readyState === WebSocket.OPEN) {
                     window.ws.send(JSON.stringify({ type: 'chat_message', text: message }));
@@ -383,7 +435,8 @@
             playerStats,
             globalStats,
             otherPlayers,
-            username
+            username,
+            cowColor // Pass cowColor to UI
         }));
 
         // Store authentication info for use in initGame
