@@ -1,11 +1,15 @@
-# the_cow_game
+# the_cow_game - [playthecowgame.com](https://www.playthecowgame.com)
 
-![image](https://github.com/user-attachments/assets/cae50c8d-9bb0-4927-8897-f93cb11267bb)
-Screenshot taken on June 14th, 2025
+[![Latest Commit is LIVE](https://github.com/BBBmau/the_cow_game/actions/workflows/deploy.yaml/badge.svg?branch=main&event=push)](https://github.com/BBBmau/the_cow_game/actions/workflows/deploy.yaml)
 
-This game is a field full of cows
+<img width="5120" height="2638" alt="image" src="https://github.com/user-attachments/assets/b2a04d7c-3948-481d-9d3e-de0cec510968" />
 
-to run locally simply do the following:
+
+Screenshot taken on august 2nd, 2025
+
+## An MMO game where you control a cow and do cow things - inspired by [fly.pieter.com](https://fly.pieter.com)
+
+To run locally simply do the following:
 
 ## Prerequisites
 - Node.js (v16 or higher)
@@ -40,12 +44,12 @@ to run locally simply do the following:
 ## Redis Integration
 
 The game uses Redis for items and stats management:
-- **Player Items**: Collectible items with metadata (expires after 30 days)
-- **Player Stats**: Experience, level, coins, achievements (expires after 1 year)
-- **Global Stats**: Server-wide statistics (no expiration)
+- **Player Items**: Collectible items with metadata (WIP)
+- **Player Stats**: Experience, level and Hay Eaten
+- **Global Stats**: Server-wide statistics
 
 ### Redis Data Structure
-- `cow_game:stats:{playerId}` - Player's statistics and achievements
+- `cow_game:stats:{playerId}` - Player's statistics
 - `cow_game:global_stats` - Global server statistics
 
 ### Available Commands
@@ -57,5 +61,3 @@ The game uses Redis for items and stats management:
 - **Experience System**: Gain XP for collecting hay
 - **Real-time Stats**: Track hay eaten and play time
 - **Global Statistics**: Server-wide hay collection tracking
-
-# Streams where this was built
