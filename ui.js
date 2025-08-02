@@ -90,36 +90,7 @@ function toggleCustomizationScreen(getState, show) {
 
     if (show) {
         const { cowColor } = getState();
-        customCowColorInput.value = cowColor; // Set current color
-        if (document.pointerLockElement) document.exitPointerLock();
-    } else {
-        // Re-lock pointer if appropriate
-        const { gameStarted } = getState();
-        if (gameStarted && !isLeaderboardActive && !document.pointerLockElement) {
-            document.body.requestPointerLock();
-        }
-    }
-}
-
-function toggleLeaderboard(playerStats, globalStats, otherPlayers, username, getState) {
-    isLeaderboardActive = !isLeaderboardActive;
-    if (isLeaderboardActive) {
-        leaderboard.style.display = 'block';
-        updateLeaderboard(playerStats, globalStats, otherPlayers, username);
-        if (document.pointerLockElement) document.exitPointerLock();
-        document.body.classList.add('leaderboard-active');
-        document.addEventListener('click', preventPointerLock, true);
-    } else {
-        leaderboard.style.display = 'none';
-        document.body.classList.remove('leaderboard-active');
-        document.removeEventListener('click', preventPointerLock, true);
-        setTimeout(() => { 
-            // Only re-lock if the game has started and the leaderboard is closed
-            const { gameStarted } = getState();
-            if (gameStarted && !isLeaderboardActive && !document.pointerLockElement) {
-                document.body.requestPointerLock();
-            }
-        }, 100);
+        customCowColorInput.value = cowColor;
     }
 }
 
@@ -184,26 +155,39 @@ export function initializeUI(callbacks, getState) {
         usernameCheckTimeout = setTimeout(() => checkUsernameAvailability(username, usernameStatus), 500);
     });
 
-    // --- General Event Listeners ---
+    // --- Event Listeners ---
+    document.addEventListener('pointerlockchange', () => {
+        const { gameStarted } = getState();
+        if (!gameStarted || isLeaderboardActive || isChatActive) return;
+
+        if (document.pointerLockElement) {
+            // Mouse was just locked, close the customization screen
+            if (isCustomizationActive) {
+                toggleCustomizationScreen(getState, false);
+            }
+        } else {
+            // Mouse was just unlocked, open the customization screen
+            toggleCustomizationScreen(getState, true);
+        }
+    }, false);
+
     document.addEventListener('keydown', (e) => {
         const state = getState();
 
-        // Chat Toggling
+        // Chat Toggling (T key to open)
         if (state.gameStarted && e.key.toLowerCase() === 't' && !isChatActive) {
             e.preventDefault();
             isChatActive = true;
             chatInput.focus();
             if (document.pointerLockElement === document.body) document.exitPointerLock();
-        } else if (e.key === 'Escape' && isChatActive) {
-            isChatActive = false;
-            chatInput.blur();
         }
 
         // Leaderboard Toggling
         if (e.key === 'Tab') {
             if (!state.gameStarted) return;
             e.preventDefault();
-            toggleLeaderboard(state.playerStats, state.globalStats, state.otherPlayers, state.username, getState);
+            // The toggleLeaderboard function is removed, so this block is now empty.
+            // The leaderboard state will be managed directly by isLeaderboardActive.
         }
 
         // Stop game keys if chat is active
@@ -211,14 +195,21 @@ export function initializeUI(callbacks, getState) {
             e.stopPropagation();
         }
 
-        // General mouse unlock and customization screen toggle
+        // Consolidated Escape key handler
         if (e.key === 'Escape') {
+            // If any modal is open, the respective handler will deal with it.
+            // If not, our only job is to exit pointer lock. The 'pointerlockchange'
+            // listener will then handle opening the menu.
             if (isCustomizationActive) {
                 toggleCustomizationScreen(getState, false);
-            } else if (state.gameStarted && !isChatActive && !isLeaderboardActive) {
-                toggleCustomizationScreen(getState, true);
-            } else {
-                if (document.pointerLockElement === document.body) document.exitPointerLock();
+                // After closing the menu, re-lock the pointer for gameplay
+                document.body.requestPointerLock();
+            } else if (isChatActive) {
+                isChatActive = false;
+                chatInput.blur();
+                document.body.requestPointerLock();
+            } else if (document.pointerLockElement) {
+                document.exitPointerLock();
             }
         }
     });
