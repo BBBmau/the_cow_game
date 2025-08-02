@@ -82,29 +82,31 @@ jobs:
         pr_number = "${{ github.event.number }}"
         EOF
 
-    - name: Force unlock if needed
-      working-directory: ./infra/pr-pods
+    - name: Terraform Plan and Unlock
+      id: plan
+      working-directory: infra/pr-pods
       run: |
-        # Check if there's a lock and force unlock if needed
-        if ! terraform plan -detailed-exitcode > /dev/null 2>&1; then
-          echo "Terraform plan failed, checking for state lock..."
-          # Try to get the lock info and extract the lock ID
-          LOCK_OUTPUT=$(terraform plan 2>&1 || true)
-          if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
-            LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | head -n 1 | tr -d '\n\r' || echo "")
-            if [ -n "$LOCK_ID" ]; then
-              echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
-              terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
-            fi
-          fi
+        # Run terraform plan and capture the output.
+        # The '-input=false' flag is crucial for non-interactive CI environments.
+        output=$(terraform plan -input=false -no-color -var="image_sha=${{ steps.docker-build.outputs.full_sha }}" 2>&1)
+        echo "$output"
+
+        # Check for the lock error message in the output.
+        if echo "$output" | grep -q "Error acquiring the state lock"; then
+          echo "State is locked, attempting to unlock."
+          # Extract the lock ID and force unlock it.
+          lock_id=$(echo "$output" | grep -oP 'ID:\s+\K[a-f0-9-]+')
+          terraform force-unlock -force "$lock_id"
+          # Re-run plan after unlocking to ensure we have a valid plan for the apply step
+          terraform plan -input=false -no-color -var="image_sha=${{ steps.docker-build.outputs.full_sha }}"
+        # If there was an error, but it wasn't a lock, fail the job.
+        elif ! echo "$output" | grep -q "No changes." && ! echo "$output" | grep -q "Plan:"; then
+          echo "An error other than a state lock occurred during terraform plan."
+          exit 1
         fi
 
-    - name: Terraform Plan
-      working-directory: ./infra/pr-pods
-      run: terraform plan -out=tfplan
-
     - name: Terraform Apply
-      working-directory: ./infra/pr-pods
+      working-directory: infra/pr-pods
       run: terraform apply tfplan
 
     - name: Get deployment info
@@ -300,38 +302,28 @@ jobs:
         pr_number = "${{ github.event.number }}"
         EOF
 
-    - name: Force unlock if needed
-      working-directory: ./infra/pr-pods
+    - name: Terraform Plan and Unlock (for destroy)
+      working-directory: infra/pr-pods
       run: |
-        WORKSPACE_NAME="pr-${{ github.event.number }}"
-        if terraform workspace select $WORKSPACE_NAME 2>/dev/null; then
-          # Check if there's a lock and force unlock if needed
-          if ! terraform plan -detailed-exitcode > /dev/null 2>&1; then
-            echo "Terraform plan failed, checking for state lock..."
-            # Try to get the lock info and extract the lock ID
-            LOCK_OUTPUT=$(terraform plan 2>&1 || true)
-            if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
-              LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | head -n 1 | tr -d '\n\r' || echo "")
-              if [ -n "$LOCK_ID" ]; then
-                echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
-                terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
-              fi
-            fi
-          fi
+        # Run terraform plan for the destroy operation and capture the output.
+        output=$(terraform plan -destroy -input=false -no-color 2>&1)
+        echo "$output"
+
+        # Check for the lock error message in the output.
+        if echo "$output" | grep -q "Error acquiring the state lock"; then
+          echo "State is locked, attempting to unlock."
+          # Extract the lock ID and force unlock it.
+          lock_id=$(echo "$output" | grep -oP 'ID:\s+\K[a-f0-9-]+')
+          terraform force-unlock -force "$lock_id"
+        # If there was an error, but it wasn't a lock, fail the job.
+        elif ! echo "$output" | grep -q "No changes." && ! echo "$output" | grep -q "Plan:"; then
+          echo "An error other than a state lock occurred during terraform plan -destroy."
+          exit 1
         fi
 
-    - name: Select workspace and destroy
-      working-directory: ./infra/pr-pods
-      run: |
-        WORKSPACE_NAME="pr-${{ github.event.number }}"
-        if terraform workspace select $WORKSPACE_NAME; then
-          terraform destroy -auto-approve
-          
-          terraform workspace select default
-          terraform workspace delete $WORKSPACE_NAME
-        else
-          echo "Workspace pr-${{ github.event.number }} not found, nothing to clean up"
-        fi
+    - name: Terraform Destroy
+      working-directory: infra/pr-pods
+      run: terraform destroy -auto-approve
 
     - name: Comment PR
       uses: actions/github-script@v6

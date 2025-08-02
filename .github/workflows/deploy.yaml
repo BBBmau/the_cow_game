@@ -62,29 +62,33 @@ jobs:
       run: |
         mkdir -p ../../credentials
         echo '${{ secrets.GCP_SA_KEY }}' > ../../credentials/thecowgame-clustermanager.json
-
-    - name: Terraform init
       working-directory: infra
-      run: terraform init
-
-    - name: Force unlock if needed
+      
+    - name: Plan and Unlock if Locked
+      id: plan
       working-directory: infra
       run: |
-        # A failed plan may indicate a lock. We'll check for the lock string.
-        if ! terraform plan -detailed-exitcode > /dev/null 2>&1; then
-          echo "Terraform plan failed, checking for state lock..."
-          # Run plan again, capturing output to find the lock ID
-          LOCK_OUTPUT=$(terraform plan 2>&1 || true)
-          if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
-            LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | head -n 1 | tr -d '\n\r' || echo "")
-            if [ -n "$LOCK_ID" ]; then
-              echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
-              terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
-            fi
-          fi
-        fi
+        # Run terraform plan and capture the output.
+        # The '-input=false' flag is crucial for non-interactive CI environments.
+        # We use '|| true' to prevent the script from exiting if the plan fails,
+        # so we can check the output for a lock error.
+        output=$(terraform plan -input=false -no-color 2>&1)
+        echo "$output"
 
-    - name: Terraform apply
+        # Check for the lock error message in the output.
+        if echo "$output" | grep -q "Error acquiring the state lock"; then
+          echo "State is locked, attempting to unlock."
+          # Extract the lock ID and force unlock it.
+          lock_id=$(echo "$output" | grep -oP 'ID:\s+\K[a-f0-9-]+')
+          terraform force-unlock -force "$lock_id"
+        # If there was an error, but it wasn't a lock, fail the job.
+        elif ! echo "$output" | grep -q "No changes. Infrastructure is up-to-date." && ! echo "$output" | grep -q "Plan:"; then
+          echo "An error other than a state lock occurred during terraform plan."
+          exit 1
+        fi
+      
+    - name: Terraform Apply
+      id: apply
       working-directory: infra
       run: |
         terraform apply -var="image_sha=${{ steps.docker-build.outputs.full_sha }}" -auto-approve
