@@ -886,69 +886,134 @@
                 nameLabel.position.y = 3;  // Raised position for better visibility
             }
 
-            function showFloatingMessage(targetObject, text, isChatMessage = false) {
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                
-                // Adjust canvas size for chat messages
-                const fontSize = isChatMessage ? 32 : 48;
-                const canvasWidth = isChatMessage ? 1024 : 256;
-                const canvasHeight = 128;
-                canvas.width = canvasWidth;
-                canvas.height = canvasHeight;
+            // Map to track active speech bubbles to ensure only one is shown per player
+            const activeSpeechBubbles = new Map();
 
-                context.font = `Bold ${fontSize}px Arial`;
-                context.textAlign = 'center';
-                context.textBaseline = 'middle';
-
-                // Outline for visibility
-                context.strokeStyle = 'black';
-                context.lineWidth = 6;
-                context.strokeText(text, canvas.width / 2, canvas.height / 2);
-
-                // Use white for chat, green for system messages
-                context.fillStyle = isChatMessage ? '#FFFFFF' : '#00FF00';
-                context.fillText(text, canvas.width / 2, canvas.height / 2);
-
-                const texture = new THREE.CanvasTexture(canvas);
-                const material = new THREE.SpriteMaterial({ 
-                    map: texture, 
-                    transparent: true, 
-                    depthTest: false 
-                });
-                const sprite = new THREE.Sprite(material);
-                
-                // Adjust scale for chat messages
-                const scaleX = isChatMessage ? 8 : 2;
-                sprite.scale.set(scaleX, 1, 1);
-
-                // Position it above the target object
-                const startPosition = targetObject.position.clone();
-                sprite.position.copy(startPosition).y += 3; // Start above the cow
-                scene.add(sprite);
-
-                // Animation logic
-                const duration = isChatMessage ? 3000 : 1500; // Longer duration for chat
-                const floatHeight = 2; // How high it floats
-                const startTime = Date.now();
-
-                function animateMessage() {
-                    const elapsed = Date.now() - startTime;
-                    const progress = elapsed / duration;
-
-                    if (progress < 1) {
-                        sprite.position.y = startPosition.y + 3 + (progress * floatHeight);
-                        sprite.material.opacity = 1.0 - progress;
-                        requestAnimationFrame(animateMessage);
-                    } else {
-                        scene.remove(sprite);
-                        // Dispose of texture and material to free up memory
-                        texture.dispose();
-                        material.dispose();
+            function showInWorldText(targetObject, text, type, ownerId) {
+                // For speech bubbles, manage timers and existing bubbles
+                if (type === 'speech') {
+                    if (activeSpeechBubbles.has(ownerId)) {
+                        const oldBubble = activeSpeechBubbles.get(ownerId);
+                        scene.remove(oldBubble.sprite);
+                        clearTimeout(oldBubble.timeoutId);
+                        oldBubble.texture.dispose();
+                        oldBubble.material.dispose();
+                        activeSpeechBubbles.delete(ownerId);
                     }
-                }
 
-                animateMessage();
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const font = '32px Arial';
+                    ctx.font = font;
+                    const textMetrics = ctx.measureText(text);
+
+                    const padding = 20;
+                    const bubbleWidth = textMetrics.width + (padding * 2);
+                    const bubbleHeight = 32 + (padding * 2);
+                    const tailHeight = 20;
+
+                    canvas.width = bubbleWidth;
+                    canvas.height = bubbleHeight + tailHeight;
+
+                    const x = 0, y = 0;
+                    const width = bubbleWidth, height = bubbleHeight;
+                    const radius = 15;
+
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(x + radius, y);
+                    ctx.lineTo(x + width - radius, y);
+                    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+                    ctx.lineTo(x + width, y + height - radius);
+                    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                    ctx.lineTo(x + radius, y + height);
+                    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+                    ctx.lineTo(x, y + radius);
+                    ctx.quadraticCurveTo(x, y, x + radius, y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(width / 2 - 15, height - 2);
+                    ctx.lineTo(width / 2, height + tailHeight);
+                    ctx.lineTo(width / 2 + 15, height - 2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = 'black';
+                    ctx.font = font;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(text, width / 2, height / 2);
+
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+                    const sprite = new THREE.Sprite(material);
+                    sprite.scale.set(bubbleWidth / 100, canvas.height / 100, 1.0);
+                    sprite.position.copy(targetObject.position).y += 3.5;
+
+                    scene.add(sprite);
+
+                    const timeoutId = setTimeout(() => {
+                        if (activeSpeechBubbles.has(ownerId)) {
+                            scene.remove(sprite);
+                            texture.dispose();
+                            material.dispose();
+                            activeSpeechBubbles.delete(ownerId);
+                        }
+                    }, 5000); // Remove after 5 seconds
+
+                    activeSpeechBubbles.set(ownerId, { sprite, timeoutId, texture, material });
+
+                } else { // 'floating' type for hay
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = 256;
+                    canvas.height = 128;
+
+                    context.font = 'Bold 48px Arial';
+                    context.textAlign = 'center';
+                    context.textBaseline = 'middle';
+                    context.strokeStyle = 'black';
+                    context.lineWidth = 6;
+                    context.strokeText(text, canvas.width / 2, canvas.height / 2);
+                    context.fillStyle = '#00FF00';
+                    context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+                    const sprite = new THREE.Sprite(material);
+                    sprite.scale.set(2, 1, 1);
+
+                    const startPosition = targetObject.position.clone();
+                    sprite.position.copy(startPosition).y += 3;
+                    scene.add(sprite);
+
+                    const duration = 1500;
+                    const floatHeight = 2;
+                    const startTime = Date.now();
+
+                    function animateMessage() {
+                        const elapsed = Date.now() - startTime;
+                        const progress = elapsed / duration;
+
+                        if (progress < 1) {
+                            sprite.position.y = startPosition.y + 3 + (progress * floatHeight);
+                            sprite.material.opacity = 1.0 - progress;
+                            requestAnimationFrame(animateMessage);
+                        } else {
+                            scene.remove(sprite);
+                            texture.dispose();
+                            material.dispose();
+                        }
+                    }
+
+                    animateMessage();
+                }
             }
 
             // Create player character with custom color
@@ -1421,7 +1486,7 @@
                         }
 
                         if (chatTargetPlayer) {
-                            showFloatingMessage(chatTargetPlayer, data.text, true);
+                            showInWorldText(chatTargetPlayer, data.text, 'speech', data.playerId);
                         }
                         // Also add it to the chat box
                         addChatMessage(data);
@@ -1456,7 +1521,7 @@
                         }
                         
                         if (hayTargetPlayer) {
-                            showFloatingMessage(hayTargetPlayer, '+1 Hay');
+                            showInWorldText(hayTargetPlayer, '+1 Hay', 'floating', data.playerId);
                         }
                         break;
 
