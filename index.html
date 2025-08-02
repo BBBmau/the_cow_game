@@ -892,14 +892,7 @@
             function showInWorldText(targetObject, text, type, ownerId) {
                 // For speech bubbles, manage timers and existing bubbles
                 if (type === 'speech') {
-                    if (activeSpeechBubbles.has(ownerId)) {
-                        const oldBubble = activeSpeechBubbles.get(ownerId);
-                        scene.remove(oldBubble.sprite);
-                        clearTimeout(oldBubble.timeoutId);
-                        oldBubble.texture.dispose();
-                        oldBubble.material.dispose();
-                        activeSpeechBubbles.delete(ownerId);
-                    }
+                    const bubbles = activeSpeechBubbles.get(ownerId) || [];
 
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
@@ -953,21 +946,31 @@
                     const texture = new THREE.CanvasTexture(canvas);
                     const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
                     const sprite = new THREE.Sprite(material);
-                    sprite.scale.set(bubbleWidth / 100, canvas.height / 100, 1.0);
-                    sprite.position.copy(targetObject.position).y += 3.5;
-
+                    const spriteHeight = canvas.height / 100;
+                    sprite.scale.set(bubbleWidth / 100, spriteHeight, 1.0);
+                    
                     scene.add(sprite);
 
-                    const timeoutId = setTimeout(() => {
-                        if (activeSpeechBubbles.has(ownerId)) {
-                            scene.remove(sprite);
-                            texture.dispose();
-                            material.dispose();
-                            activeSpeechBubbles.delete(ownerId);
-                        }
-                    }, 5000); // Remove after 5 seconds
+                    const newBubble = {
+                        sprite: sprite,
+                        texture: texture,
+                        material: material,
+                        target: targetObject,
+                        creationTime: Date.now(),
+                        height: spriteHeight
+                    };
 
-                    activeSpeechBubbles.set(ownerId, { sprite, timeoutId, texture, material, target: targetObject });
+                    bubbles.push(newBubble);
+
+                    // Limit to 3 bubbles per player
+                    if (bubbles.length > 3) {
+                        const oldestBubble = bubbles.shift(); // Remove the oldest bubble
+                        scene.remove(oldestBubble.sprite);
+                        oldestBubble.texture.dispose();
+                        oldestBubble.material.dispose();
+                    }
+
+                    activeSpeechBubbles.set(ownerId, bubbles);
 
                 } else { // 'floating' type for hay
                     const canvas = document.createElement('canvas');
@@ -1697,8 +1700,37 @@
                 checkHayCollision();
 
                 // Update speech bubble positions
-                activeSpeechBubbles.forEach((bubble) => {
-                    bubble.sprite.position.copy(bubble.target.position).y += 3.5;
+                const BUBBLE_LIFESPAN = 5000; // 5 seconds
+                const BUBBLE_STACK_GAP = 0.2;
+
+                activeSpeechBubbles.forEach((bubbles, ownerId) => {
+                    let currentYOffset = 3.5;
+                    
+                    // Iterate backwards to safely remove bubbles
+                    for (let i = bubbles.length - 1; i >= 0; i--) {
+                        const bubble = bubbles[i];
+                        const age = Date.now() - bubble.creationTime;
+
+                        if (age > BUBBLE_LIFESPAN) {
+                            // Remove the bubble
+                            scene.remove(bubble.sprite);
+                            bubble.texture.dispose();
+                            bubble.material.dispose();
+                            bubbles.splice(i, 1);
+                        } else {
+                            // Update position
+                            bubble.sprite.position.copy(bubble.target.position);
+                            bubble.sprite.position.y += currentYOffset;
+                            
+                            // Move the next bubble up
+                            currentYOffset += bubble.height + BUBBLE_STACK_GAP;
+                        }
+                    }
+
+                    // If no bubbles are left for this owner, remove the entry from the map
+                    if (bubbles.length === 0) {
+                        activeSpeechBubbles.delete(ownerId);
+                    }
                 });
 
                 // Update time played every second
