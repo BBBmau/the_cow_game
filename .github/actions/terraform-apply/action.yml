@@ -1,0 +1,88 @@
+name: 'Terraform Plan and Apply'
+description: 'A composite action to run Terraform plan and apply with state lock handling.'
+
+inputs:
+  gcp_project_id:
+    description: 'The GCP project ID.'
+    required: true
+  gcp_sa_key:
+    description: 'The GCP service account key.'
+    required: true
+  image_sha:
+    description: 'The SHA of the Docker image to deploy.'
+    required: true
+  working_directory:
+    description: 'The working directory for Terraform commands.'
+    required: false
+    default: 'infra'
+  region:
+    description: 'The GCP region for the deployment.'
+    required: false
+    default: 'us-west1'
+
+outputs:
+  deployment-status:
+    description: 'The status of the Terraform deployment.'
+    value: ${{ steps.apply.outputs.deployment-status }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ inputs.gcp_sa_key }}
+        project_id: ${{ inputs.gcp_project_id }}
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Install gke-gcloud-auth-plugin
+      shell: bash
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
+    - name: Get GKE cluster credentials
+      shell: bash
+      run: |
+        gcloud container clusters get-credentials the-cow-game-cluster --region ${{ inputs.region }} --project ${{ inputs.gcp_project_id }}
+
+    - name: Create credentials file for Terraform
+      shell: bash
+      run: |
+        mkdir -p ../../credentials
+        echo '${{ inputs.gcp_sa_key }}' > ../../credentials/thecowgame-clustermanager.json
+      working-directory: ${{ inputs.working_directory }}
+
+    - name: Terraform Plan and Apply
+      id: apply
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        # First, run terraform plan to check for errors and state locks.
+        output=$(terraform plan -input=false -no-color -var="image_sha=${{ inputs.image_sha }}" 2>&1)
+        echo "$output"
+
+        # If the state is locked, unlock it and re-run the plan.
+        if echo "$output" | grep -q "Error acquiring the state lock"; then
+          echo "State is locked. Attempting to unlock..."
+          lock_id=$(echo "$output" | grep -oP 'ID:\\s+\\K[a-f0-9-]+')
+          terraform force-unlock -force "$lock_id"
+          
+          echo "Re-running plan after unlock..."
+          output=$(terraform plan -input=false -no-color -var="image_sha=${{ inputs.image_sha }}" 2>&1)
+          echo "$output"
+        fi
+
+        # Before applying, check if the plan was successful.
+        # A successful plan will contain "No changes" or "Plan:".
+        if ! (echo "$output" | grep -q "No changes. Infrastructure is up-to-date." || echo "$output" | grep -q "Plan:"); then
+          echo "Terraform plan failed. See output above."
+          echo "deployment-status=failed" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        # If the plan is successful, apply the changes.
+        terraform apply -var="image_sha=${{ inputs.image_sha }}" -auto-approve
+        echo "deployment-status=success" >> $GITHUB_OUTPUT 
