@@ -1258,16 +1258,10 @@
                                     guestMessage.id = 'guestMessage';
                                     customizationScreen.insertBefore(guestMessage, customizationScreen.firstChild);
                                 } else {
-                                    // Initialize the customization UI for authenticated users
-                                    initializeInventory();
-                                    // Initialize cow preview with current color
-                                    if (typeof initializeCowPreview === 'function') {
-                                        initializeCowPreview();
-                                        updateCowColor(cowColor);
-                                    }
-                                    // Initialize color picker
-                                    if (typeof initializeColorPicker === 'function') {
-                                        initializeColorPicker(cowColor);
+                                    // For authenticated users, just show the normal customization screen
+                                    // This will initialize everything properly (inventory, cow preview, color picker)
+                                    if (typeof showCustomizationScreen === 'function') {
+                                        showCustomizationScreen(cowColor);
                                     }
                                 }
                             }

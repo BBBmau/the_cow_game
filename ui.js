@@ -287,11 +287,17 @@ export function initializeUI(callbacks, getState) {
                     // Update global reference
                     window.cowColorPicker = cowColorPicker;
 
-                    cowColorPicker.on('color:change', function(color) {
-                        console.log('Color changed to:', color.hexString);
+                                    cowColorPicker.on('color:change', function(color) {
+                    console.log('Color changed to:', color.hexString);
+                    // Update the 3D preview
+                    if (typeof updateCowColor === 'function') {
+                        updateCowColor(color.hexString);
+                    }
+                    // Update the game state if callbacks are available
+                    if (typeof callbacks !== 'undefined' && callbacks.onCowColorChange) {
                         callbacks.onCowColorChange(color.hexString);
-                        updateCowColor(color.hexString); // Update the 3D preview
-                    });
+                    }
+                });
                     
                     console.log('Color picker created successfully');
                 } catch (error) {
@@ -331,9 +337,24 @@ export function initializeUI(callbacks, getState) {
         await saveCurrentCustomization();
         
         // Save color to Redis
-        const state = getState();
         const currentColor = cowColorPicker ? cowColorPicker.color.hexString : '#ffffff';
-        await saveColorToRedis(state.username, currentColor);
+        
+        // Try to get username from state, fallback to global username
+        let username = null;
+        try {
+            const state = getState();
+            username = state.username;
+        } catch (error) {
+            console.log('getState not available, using global username');
+            username = window.currentUsername;
+        }
+        
+        if (username) {
+            await saveColorToRedis(username, currentColor);
+            console.log(`Color saved to Redis for ${username}: ${currentColor}`);
+        } else {
+            console.error('No username available for color saving');
+        }
         
         // Dispose of the 3D cow preview
         disposeCowPreview();
@@ -499,52 +520,11 @@ export function initializeUI(callbacks, getState) {
     // Initial setup
     const initialCowColor = '#ffffff'; 
     callbacks.onCowColorChange(initialCowColor);
-}
-
-// Function to initialize color picker for new users
-function initializeColorPicker(initialColor = '#ffffff') {
-    console.log('Initializing color picker for new user with color:', initialColor);
     
-    // Use setTimeout to ensure the DOM is fully visible before initializing the color picker
-    setTimeout(() => {
-        const container = document.getElementById('color-picker-wheel');
-        console.log('Color picker container:', container);
-        
-        // Check if iro is available
-        if (typeof iro === 'undefined') {
-            console.error('iro.js library is not loaded');
-            return;
-        }
-        
-        if (cowColorPicker) {
-            console.log('Updating existing color picker');
-            cowColorPicker.color.hexString = initialColor;
-        } else {
-            console.log('Creating new color picker');
-            try {
-                cowColorPicker = new iro.ColorPicker('#color-picker-wheel', {
-                    width: 280,
-                    color: initialColor,
-                    borderWidth: 1,
-                    borderColor: '#fff',
-                });
-
-                // Update global reference
-                window.cowColorPicker = cowColorPicker;
-
-                cowColorPicker.on('color:change', function(color) {
-                    console.log('Color changed to:', color.hexString);
-                    callbacks.onCowColorChange(color.hexString);
-                    updateCowColor(color.hexString); // Update the 3D preview
-                });
-                
-                console.log('Color picker created successfully');
-            } catch (error) {
-                console.error('Error creating color picker:', error);
-            }
-        }
-    }, 100); // Small delay to ensure DOM is ready
+    // Make functions available globally after they're defined
+    window.showCustomizationScreen = showCustomizationScreen;
+    window.hideCustomizationScreen = hideCustomizationScreen;
+    window.cowColorPicker = cowColorPicker;
 }
 
-// Make color picker function available globally
-window.initializeColorPicker = initializeColorPicker;
+
