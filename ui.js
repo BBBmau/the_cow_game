@@ -1,23 +1,52 @@
- // This file will handle all interactions with the HTML DOM, including the login screen, chat box, and leaderboard.
+import { initializeCowPreview, updateCowColor, dispose as disposeCowPreview } from './cowPreview.js';
+
+// This file will handle all interactions with the HTML DOM, including the login screen, chat box, and leaderboard.
 
 // --- State ---
 export let isChatActive = false;
 export let isLeaderboardActive = false;
 
-// --- DOM Elements ---
-const chatMessages = document.getElementById('chatMessages');
-const chatInput = document.getElementById('chatInput');
-const leaderboard = document.getElementById('leaderboard');
-const playerStatsGrid = document.getElementById('playerStatsGrid');
-const globalStatsGrid = document.getElementById('globalStatsGrid');
-const onlinePlayersList = document.getElementById('onlinePlayersList');
-const customizationScreen = document.getElementById('customizationScreen');
-const saveCustomizationButton = document.getElementById('saveCustomizationButton');
+// Function to get DOM elements safely
+function getDOMElements() {
+    return {
+        chatMessages: document.getElementById('chatMessages'),
+        chatInput: document.getElementById('chatInput'),
+        leaderboard: document.getElementById('leaderboard'),
+        playerStatsGrid: document.getElementById('playerStatsGrid'),
+        globalStatsGrid: document.getElementById('globalStatsGrid'),
+        onlinePlayersList: document.getElementById('onlinePlayersList'),
+        customizationScreen: document.getElementById('customizationScreen'),
+        saveCustomizationButton: document.getElementById('saveCustomizationButton')
+    };
+}
 
+// Function to check if required libraries are loaded
+function checkLibrariesLoaded() {
+    const libraries = {
+        'iro.js': typeof iro !== 'undefined',
+        'THREE.js': typeof THREE !== 'undefined',
+        'OrbitControls': typeof THREE !== 'undefined' && THREE.OrbitControls
+    };
+    
+    console.log('Library status:', libraries);
+    
+    const allLoaded = Object.values(libraries).every(loaded => loaded);
+    if (!allLoaded) {
+        console.error('Some libraries are not loaded:', libraries);
+    }
+    
+    return allLoaded;
+}
 
 // --- Helper Functions ---
 
 export function addChatMessage(message, type = 'player') {
+    const { chatMessages } = getDOMElements();
+    if (!chatMessages) {
+        console.error('Chat messages container not found');
+        return;
+    }
+    
     const messageDiv = document.createElement('div');
     messageDiv.className = 'chat-message';
     
@@ -32,6 +61,12 @@ export function addChatMessage(message, type = 'player') {
 }
 
 function updatePlayerStatsSection(playerStats) {
+    const { playerStatsGrid } = getDOMElements();
+    if (!playerStatsGrid) {
+        console.error('Player stats grid not found');
+        return;
+    }
+    
     const expToNextLevel = 100 - (playerStats.experience % 100);
     playerStatsGrid.innerHTML = `
         <div class="stat-item"><div class="stat-label">Level</div><div class="stat-value">${playerStats.level}</div></div>
@@ -44,6 +79,12 @@ function updatePlayerStatsSection(playerStats) {
 }
 
 function updateGlobalStatsSection(globalStats) {
+    const { globalStatsGrid } = getDOMElements();
+    if (!globalStatsGrid) {
+        console.error('Global stats grid not found');
+        return;
+    }
+    
     const serverUptime = globalStats.serverStartTime ? Math.floor((Date.now() - globalStats.serverStartTime) / 1000) : 0;
     globalStatsGrid.innerHTML = `
         <div class="stat-item"><div class="stat-label">Total Players</div><div class="stat-value">${globalStats.totalPlayers}</div></div>
@@ -53,6 +94,12 @@ function updateGlobalStatsSection(globalStats) {
 }
 
 function updateOnlinePlayersSection(otherPlayers, username, playerStats) {
+    const { onlinePlayersList } = getDOMElements();
+    if (!onlinePlayersList) {
+        console.error('Online players list not found');
+        return;
+    }
+    
     const players = Array.from(otherPlayers.values());
     players.unshift({
         username: username,
@@ -84,6 +131,12 @@ function preventPointerLock(event) {
 }
 
 function toggleLeaderboard(playerStats, globalStats, otherPlayers, username, getState) {
+    const { leaderboard } = getDOMElements();
+    if (!leaderboard) {
+        console.error('Leaderboard element not found');
+        return;
+    }
+    
     isLeaderboardActive = !isLeaderboardActive;
     if (isLeaderboardActive) {
         leaderboard.style.display = 'block';
@@ -139,31 +192,78 @@ export function initializeUI(callbacks, getState) {
     let isIntentionallyClosingCustomization = false; // Add this flag
 
     function showCustomizationScreen(initialColor) {
+        const { customizationScreen } = getDOMElements();
+        if (!customizationScreen) {
+            console.error('Customization screen element not found');
+            return;
+        }
+        
         originalColor = initialColor;
         isCustomizationActive = true;
         isIntentionallyClosingCustomization = false; // Reset the flag
         customizationScreen.classList.remove('hidden');
 
-        if (cowColorPicker) {
-            cowColorPicker.color.hexString = initialColor;
-        } else {
-            cowColorPicker = new iro.ColorPicker('#color-picker-wheel', {
-                width: 280,
-                color: initialColor,
-                borderWidth: 1,
-                borderColor: '#fff',
-            });
-
-            cowColorPicker.on('color:change', function(color) {
-                callbacks.onCowColorChange(color.hexString);
-            });
+        // Check if libraries are loaded before initializing
+        if (!checkLibrariesLoaded()) {
+            console.error('Cannot initialize customization screen - libraries not loaded');
+            return;
         }
+
+        // Initialize the 3D cow preview
+        initializeCowPreview();
+        updateCowColor(initialColor);
+
+        // Use setTimeout to ensure the DOM is fully visible before initializing the color picker
+        setTimeout(() => {
+            const container = document.getElementById('color-picker-wheel');
+            console.log('Color picker container:', container);
+            
+            // Check if iro is available
+            if (typeof iro === 'undefined') {
+                console.error('iro.js library is not loaded');
+                return;
+            }
+            
+            if (cowColorPicker) {
+                console.log('Updating existing color picker');
+                cowColorPicker.color.hexString = initialColor;
+            } else {
+                console.log('Creating new color picker');
+                try {
+                    cowColorPicker = new iro.ColorPicker('#color-picker-wheel', {
+                        width: 280,
+                        color: initialColor,
+                        borderWidth: 1,
+                        borderColor: '#fff',
+                    });
+
+                    cowColorPicker.on('color:change', function(color) {
+                        console.log('Color changed to:', color.hexString);
+                        callbacks.onCowColorChange(color.hexString);
+                        updateCowColor(color.hexString); // Update the 3D preview
+                    });
+                    
+                    console.log('Color picker created successfully');
+                } catch (error) {
+                    console.error('Error creating color picker:', error);
+                }
+            }
+        }, 100); // Small delay to ensure DOM is ready
     }
 
     function hideCustomizationScreen() {
+        const { customizationScreen } = getDOMElements();
+        if (!customizationScreen) {
+            console.error('Customization screen element not found');
+            return;
+        }
+        
         isCustomizationActive = false;
         isIntentionallyClosingCustomization = true; // Set the flag
         customizationScreen.classList.add('hidden');
+        
+        // Dispose of the 3D cow preview
+        disposeCowPreview();
     }
 
     // --- Login Form ---
@@ -178,31 +278,45 @@ export function initializeUI(callbacks, getState) {
         });
     }
 
-    saveCustomizationButton.addEventListener('click', () => {
-        hideCustomizationScreen();
-        document.body.requestPointerLock();
-    });
+    const { saveCustomizationButton, customizationScreen, chatInput } = getDOMElements();
     
-    usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') passwordInput.focus(); });
-    passwordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') startButton.click(); });
+    if (saveCustomizationButton) {
+        saveCustomizationButton.addEventListener('click', () => {
+            hideCustomizationScreen();
+            document.body.requestPointerLock();
+        });
+    }
+    
+    if (usernameInput) {
+        usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') passwordInput.focus(); });
+    }
+    if (passwordInput) {
+        passwordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') startButton.click(); });
+    }
 
     const usernameStatus = document.createElement('div');
     usernameStatus.style.cssText = `margin-top: 5px; font-size: 12px; min-height: 16px;`;
-    usernameInput.parentNode.insertBefore(usernameStatus, usernameInput.nextSibling);
+    if (usernameInput && usernameInput.parentNode) {
+        usernameInput.parentNode.insertBefore(usernameStatus, usernameInput.nextSibling);
+    }
 
     let usernameCheckTimeout;
-    usernameInput.addEventListener('input', (e) => {
-        const username = e.target.value.trim();
-        clearTimeout(usernameCheckTimeout);
-        if (!username) { usernameStatus.textContent = ''; return; }
-        usernameStatus.textContent = 'Checking availability...';
-        usernameStatus.style.color = '#888';
-        usernameCheckTimeout = setTimeout(() => checkUsernameAvailability(username, usernameStatus), 500);
-    });
+    if (usernameInput) {
+        usernameInput.addEventListener('input', (e) => {
+            const username = e.target.value.trim();
+            clearTimeout(usernameCheckTimeout);
+            if (!username) { usernameStatus.textContent = ''; return; }
+            usernameStatus.textContent = 'Checking availability...';
+            usernameStatus.style.color = '#888';
+            usernameCheckTimeout = setTimeout(() => checkUsernameAvailability(username, usernameStatus), 500);
+        });
+    }
 
-    customizationScreen.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
+    if (customizationScreen) {
+        customizationScreen.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
 
     // --- Event Listeners ---
     document.addEventListener('keydown', (e) => {
@@ -258,23 +372,25 @@ export function initializeUI(callbacks, getState) {
         }
     });
 
-    chatInput.addEventListener('focus', () => {
-        isChatActive = true;
-    });
+    if (chatInput) {
+        chatInput.addEventListener('focus', () => {
+            isChatActive = true;
+        });
 
-    chatInput.addEventListener('blur', () => {
-        isChatActive = false;
-    });
+        chatInput.addEventListener('blur', () => {
+            isChatActive = false;
+        });
 
-    chatInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            const message = chatInput.value;
-            if (message.trim()) {
-                callbacks.onSendMessage(message);
-                chatInput.value = '';
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const message = chatInput.value;
+                if (message.trim()) {
+                    callbacks.onSendMessage(message);
+                    chatInput.value = '';
+                }
             }
-        }
-    });
+        });
+    }
 
     document.addEventListener('pointerlockchange', () => {
         const isLocked = document.pointerLockElement === document.body;
