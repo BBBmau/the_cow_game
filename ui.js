@@ -136,10 +136,12 @@ export function initializeUI(callbacks, getState) {
     let isCustomizationActive = false;
     let cowColorPicker;
     let originalColor;
+    let isIntentionallyClosingCustomization = false; // Add this flag
 
     function showCustomizationScreen(initialColor) {
         originalColor = initialColor;
         isCustomizationActive = true;
+        isIntentionallyClosingCustomization = false; // Reset the flag
         customizationScreen.classList.remove('hidden');
 
         if (cowColorPicker) {
@@ -160,6 +162,7 @@ export function initializeUI(callbacks, getState) {
 
     function hideCustomizationScreen() {
         isCustomizationActive = false;
+        isIntentionallyClosingCustomization = true; // Set the flag
         customizationScreen.classList.add('hidden');
     }
 
@@ -275,11 +278,15 @@ export function initializeUI(callbacks, getState) {
 
     document.addEventListener('pointerlockchange', () => {
         const isLocked = document.pointerLockElement === document.body;
-        if (!isLocked && !isChatActive && !isLeaderboardActive) {
+        if (!isLocked && !isChatActive && !isLeaderboardActive && !isCustomizationActive && !isIntentionallyClosingCustomization) {
             const state = getState();
             if (state.gameStarted) {
                 showCustomizationScreen(state.cowColor);
             }
+        }
+        // Reset the flag after the pointer lock change is processed
+        if (isLocked) {
+            isIntentionallyClosingCustomization = false;
         }
     });
 
