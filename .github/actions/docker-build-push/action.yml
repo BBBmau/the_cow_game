@@ -17,9 +17,6 @@ inputs:
   image_sha:
     description: 'The full SHA to tag the image with'
     required: true
-  git_ref:
-    description: 'The git ref (branch or tag) to use for cache tagging'
-    required: true
   tag_latest:
     description: 'Whether to also tag the image as latest'
     required: false
@@ -42,28 +39,30 @@ runs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Check if image already exists
+      id: check-image
+      shell: bash
+      run: |
+        IMAGE_TAG="${{ inputs.registry }}/${{ inputs.project_id }}/${{ inputs.repository }}/${{ inputs.image_name }}:${{ inputs.image_sha }}"
+        echo "Checking for image: $IMAGE_TAG"
+        if docker pull $IMAGE_TAG 2>/dev/null; then
+          echo "Image already exists."
+          echo "skip_build=true" >> $GITHUB_OUTPUT
+        else
+          echo "Image does not exist. Will build."
+          echo "skip_build=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: Build and push Docker image
+      if: steps.check-image.outputs.skip_build != 'true'
       shell: bash
       run: |
         IMAGE_URI="${{ inputs.registry }}/${{ inputs.project_id }}/${{ inputs.repository }}/${{ inputs.image_name }}"
         IMAGE_TAG_SHA="$IMAGE_URI:${{ inputs.image_sha }}"
-        
-        # Create a sanitized cache tag from the git ref
-        # Replaces / with -
-        CACHE_TAG_NAME=$(echo "${{ inputs.git_ref }}" | sed 's/[^a-zA-Z0-9]/-/g')
-        CACHE_IMAGE_TAG="$IMAGE_URI:cache-$CACHE_TAG_NAME"
 
-        # Pull the cache image if it exists
-        docker pull $CACHE_IMAGE_TAG || true
-
-        # Build the new image, using the cache
-        docker build --cache-from $CACHE_IMAGE_TAG -t $IMAGE_TAG_SHA -t $CACHE_IMAGE_TAG .
-
-        # Push the sha-tagged image and the cache image
+        docker build -t $IMAGE_TAG_SHA .
         docker push $IMAGE_TAG_SHA
-        docker push $CACHE_IMAGE_TAG
         
-        # Optionally, tag and push "latest"
         if [ "${{ inputs.tag_latest }}" == "true" ]; then
           echo "Tagging and pushing latest tag..."
           IMAGE_TAG_LATEST="$IMAGE_URI:latest"
