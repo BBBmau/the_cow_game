@@ -287,17 +287,14 @@ export function initializeUI(callbacks, getState) {
                     // Update global reference
                     window.cowColorPicker = cowColorPicker;
 
-                                    cowColorPicker.on('color:change', function(color) {
-                    console.log('Color changed to:', color.hexString);
-                    // Update the 3D preview
-                    if (typeof updateCowColor === 'function') {
-                        updateCowColor(color.hexString);
-                    }
-                    // Update the game state if callbacks are available
-                    if (typeof callbacks !== 'undefined' && callbacks.onCowColorChange) {
-                        callbacks.onCowColorChange(color.hexString);
-                    }
-                });
+                                                        cowColorPicker.on('color:change', function(color) {
+                        console.log('Color changed to:', color.hexString);
+                        // Only update the 3D preview during customization
+                        if (typeof updateCowColor === 'function') {
+                            updateCowColor(color.hexString);
+                        }
+                        // Don't send to server until user saves
+                    });
                     
                     console.log('Color picker created successfully');
                 } catch (error) {
@@ -352,6 +349,11 @@ export function initializeUI(callbacks, getState) {
         if (username) {
             await saveColorToRedis(username, currentColor);
             console.log(`Color saved to Redis for ${username}: ${currentColor}`);
+            
+            // Now send the color update to the server
+            if (typeof callbacks !== 'undefined' && callbacks.onCowColorChange) {
+                callbacks.onCowColorChange(currentColor);
+            }
         } else {
             console.error('No username available for color saving');
         }
