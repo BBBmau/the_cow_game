@@ -41,6 +41,46 @@ function checkLibrariesLoaded() {
 
 // --- Helper Functions ---
 
+async function saveColorToRedis(username, color) {
+    try {
+        const response = await fetch('/save-color', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                color: color
+            })
+        });
+        
+        if (response.ok) {
+            console.log(`Color saved to Redis for ${username}: ${color}`);
+        } else {
+            console.error('Failed to save color to Redis');
+        }
+    } catch (error) {
+        console.error('Error saving color to Redis:', error);
+    }
+}
+
+async function loadColorFromRedis(username) {
+    try {
+        const response = await fetch(`/load-color?username=${encodeURIComponent(username)}`);
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`Color loaded from Redis for ${username}: ${data.color}`);
+            return data.color;
+        } else {
+            console.error('Failed to load color from Redis');
+            return '#ffffff'; // Default white
+        }
+    } catch (error) {
+        console.error('Error loading color from Redis:', error);
+        return '#ffffff'; // Default white
+    }
+}
+
 export function addChatMessage(message, type = 'player') {
     const { chatMessages } = getDOMElements();
     if (!chatMessages) {
@@ -268,6 +308,11 @@ export function initializeUI(callbacks, getState) {
         
         // Save current customization
         await saveCurrentCustomization();
+        
+        // Save color to Redis
+        const state = getState();
+        const currentColor = cowColorPicker ? cowColorPicker.color.hexString : '#ffffff';
+        await saveColorToRedis(state.username, currentColor);
         
         // Dispose of the 3D cow preview
         disposeCowPreview();

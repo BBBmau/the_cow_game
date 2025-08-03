@@ -501,12 +501,26 @@
                 };
             }
             
-            // Set color after potential auth, so it's not lost
-            // cowColor is already set by the color picker's on change event
+            // Load saved color from Redis
+            try {
+                const response = await fetch(`/load-color?username=${encodeURIComponent(username)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    cowColor = data.color;
+                    console.log(`Loaded saved color for ${username}: ${cowColor}`);
+                }
+            } catch (error) {
+                console.error('Error loading color from Redis:', error);
+            }
         
             document.getElementById('loginScreen').classList.add('hidden');
             gameStarted = true;
             initGame(); // Call initGame without arguments
+            
+            // Store the loaded color to apply after WebSocket connection
+            if (cowColor && cowColor !== '#ffffff') {
+                window.loadedColor = cowColor;
+            }
         }
 
         initializeUI({
@@ -1152,6 +1166,20 @@
                     case 'init':
                         clientId = data.id;
                         console.log('Initialized with ID:', clientId);
+                        
+                        // Apply loaded color if we have one
+                        if (window.loadedColor && window.loadedColor !== '#ffffff') {
+                            updatePlayerCow(window.loadedColor);
+                            cowColor = window.loadedColor;
+                            
+                            // Send color update to server
+                            window.ws.send(JSON.stringify({
+                                type: 'update_color',
+                                color: window.loadedColor
+                            }));
+                            
+                            delete window.loadedColor;
+                        }
                         
                         // Update player stats if provided
                         if (data.stats) {
