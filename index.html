@@ -335,7 +335,11 @@
     <div id="customizationScreen" class="hidden">
         <div id="customizationContainer">
             <h2>Customize Your Cow</h2>
-            <div id="color-picker-wheel" style="margin: 20px auto; display: flex; justify-content: center;"></div>
+            <div style="text-align: center; margin: 20px 0;">
+                <h3 style="margin-bottom: 10px; color: #333;">Preview</h3>
+                <canvas id="cowPreviewCanvas" width="300" height="300" style="border: 2px solid #ddd; border-radius: 8px; background: linear-gradient(135deg, #87CEEB 0%, #98FB98 100%); margin-bottom: 20px;"></canvas>
+                <div id="color-picker-wheel" style="display: flex; justify-content: center; min-height: 280px; width: 100%; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9; padding: 10px;"></div>
+            </div>
             <button id="saveCustomizationButton" style="margin-top: 20px;">Save & Close</button>
             <p style="font-size: 12px; color: #666; margin-top: 10px;">
                 Press ESC to close without saving.
