@@ -1,4 +1,5 @@
 import { initializeCowPreview, updateCowColor, dispose as disposeCowPreview } from './cowPreview.js';
+import { initializeInventory, resetCustomization, saveCurrentCustomization } from './inventory.js';
 
 // This file will handle all interactions with the HTML DOM, including the login screen, chat box, and leaderboard.
 
@@ -213,6 +214,9 @@ export function initializeUI(callbacks, getState) {
         initializeCowPreview();
         updateCowColor(initialColor);
 
+        // Initialize the inventory system
+        initializeInventory();
+
         // Use setTimeout to ensure the DOM is fully visible before initializing the color picker
         setTimeout(() => {
             const container = document.getElementById('color-picker-wheel');
@@ -251,7 +255,7 @@ export function initializeUI(callbacks, getState) {
         }, 100); // Small delay to ensure DOM is ready
     }
 
-    function hideCustomizationScreen() {
+    async function hideCustomizationScreen() {
         const { customizationScreen } = getDOMElements();
         if (!customizationScreen) {
             console.error('Customization screen element not found');
@@ -262,8 +266,14 @@ export function initializeUI(callbacks, getState) {
         isIntentionallyClosingCustomization = true; // Set the flag
         customizationScreen.classList.add('hidden');
         
+        // Save current customization
+        await saveCurrentCustomization();
+        
         // Dispose of the 3D cow preview
         disposeCowPreview();
+        
+        // Reset inventory customization
+        resetCustomization();
     }
 
     // --- Login Form ---

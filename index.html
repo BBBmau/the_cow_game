@@ -122,6 +122,67 @@
             display: none !important;
         }
         
+        /* Inventory Pagination Styles */
+        .nav-btn {
+            padding: 8px 16px;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+            background: #fff;
+            color: #666;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-btn:hover {
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+        
+        .nav-btn.active {
+            background: #4CAF50;
+            border-color: #4CAF50;
+            color: white;
+        }
+        
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .inventory-item {
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            background: #fff;
+            transition: all 0.2s ease;
+        }
+        
+        .inventory-item:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .inventory-item.selected {
+            border-color: #2196F3;
+            background: #e3f2fd;
+        }
+        
+        .inventory-item.locked {
+            border-color: #ccc;
+            background: #f5f5f5;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .inventory-item.locked:hover {
+            transform: none;
+            box-shadow: none;
+        }
+        
         #leaderboard {
             position: fixed;
             top: 50%;
@@ -335,10 +396,33 @@
     <div id="customizationScreen" class="hidden">
         <div id="customizationContainer">
             <h2>Customize Your Cow</h2>
-            <div style="text-align: center; margin: 20px 0;">
-                <h3 style="margin-bottom: 10px; color: #333;">Preview</h3>
-                <canvas id="cowPreviewCanvas" width="300" height="300" style="border: 2px solid #ddd; border-radius: 8px; margin-bottom: 20px;"></canvas>
-                <div id="color-picker-wheel" style="display: flex; justify-content: center; min-height: 280px; width: 100%; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9; padding: 10px;"></div>
+            <div style="display: flex; gap: 30px; margin: 20px 0;">
+                <!-- Left column: Cow preview and color wheel -->
+                <div style="flex: 1; text-align: center;">
+                    <h3 style="margin-bottom: 10px; color: #333;">Preview</h3>
+                    <canvas id="cowPreviewCanvas" width="300" height="300" style="border: 2px solid #ddd; border-radius: 8px; margin-bottom: 20px;"></canvas>
+                    <div id="color-picker-wheel" style="display: flex; justify-content: center; min-height: 280px; width: 100%; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9; padding: 10px;"></div>
+                </div>
+                
+                <!-- Right column: Inventory -->
+                <div style="flex: 1; text-align: center;">
+                    <h3 style="margin-bottom: 10px; color: #333;">Inventory</h3>
+                    <div id="inventoryContainer" style="border: 2px solid #ddd; border-radius: 8px; background: #f9f9f9; padding: 20px; min-height: 580px;">
+                        <!-- Page Navigation -->
+                        <div id="inventoryNavigation" style="display: flex; justify-content: center; gap: 10px; margin-bottom: 20px;">
+                            <button class="nav-btn active" data-page="hats">Hats</button>
+                            <button class="nav-btn" data-page="glasses">Glasses</button>
+                            <button class="nav-btn" data-page="accessories">Accessories</button>
+                            <button class="nav-btn" data-page="patterns">Patterns</button>
+                            <button class="nav-btn" data-page="effects">Effects</button>
+                        </div>
+                        
+                        <!-- Single Grid for all items -->
+                        <div id="inventoryGrid" class="inventory-grid">
+                            <!-- Items will be populated here -->
+                        </div>
+                    </div>
+                </div>
             </div>
             <button id="saveCustomizationButton" style="margin-top: 20px;">Save & Close</button>
             <p style="font-size: 12px; color: #666; margin-top: 10px;">
