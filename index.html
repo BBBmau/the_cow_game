@@ -1219,6 +1219,58 @@
                         
                         addChatMessage('Welcome to the game!', 'system');
                         break;
+                        
+                    case 'stats_updated':
+                        console.log('Received stats_updated message:', data);
+                        // Update player stats
+                        if (data.stats) {
+                            playerStats = { ...playerStats, ...data.stats };
+                        }
+                        
+                        // If this is a new user, redirect to customization
+                        if (data.isNewUser) {
+                            console.log('New user detected, redirecting to customization');
+                            // Exit pointer lock if active
+                            if (document.pointerLockElement) {
+                                document.exitPointerLock();
+                            }
+                            // Show customization screen with current color
+                            const customizationScreen = document.getElementById('customizationScreen');
+                            if (customizationScreen) {
+                                customizationScreen.classList.remove('hidden');
+                                
+                                // Check if user is guest (no password provided)
+                                const isGuest = !authInfo.isAuthenticated;
+                                
+                                if (isGuest) {
+                                    // Disable customization for guests
+                                    const colorWheel = document.getElementById('color-picker-wheel');
+                                    const saveButton = document.getElementById('saveCustomizationButton');
+                                    const inventoryContainer = document.getElementById('inventoryContainer');
+                                    
+                                    if (colorWheel) colorWheel.style.opacity = '0.5';
+                                    if (saveButton) saveButton.disabled = true;
+                                    if (inventoryContainer) inventoryContainer.style.opacity = '0.5';
+                                    
+                                    // Add guest message
+                                    const guestMessage = document.createElement('div');
+                                    guestMessage.innerHTML = '<p style="color: #ff6b6b; font-weight: bold; margin: 20px 0;">Guest users cannot customize their cow. Please create an account to unlock customization features.</p>';
+                                    guestMessage.id = 'guestMessage';
+                                    customizationScreen.insertBefore(guestMessage, customizationScreen.firstChild);
+                                } else {
+                                    // Initialize the customization UI for authenticated users
+                                    initializeInventory();
+                                    // Initialize cow preview with current color
+                                    if (typeof initializeCowPreview === 'function') {
+                                        initializeCowPreview();
+                                        updateCowColor(cowColor);
+                                    }
+                                }
+                            }
+                        } else {
+                            console.log('Not a new user, isNewUser:', data.isNewUser);
+                        }
+                        break;
 
                     case 'player_joined':
                         console.log('Player joined:', data);

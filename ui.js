@@ -306,6 +306,21 @@ export function initializeUI(callbacks, getState) {
         isIntentionallyClosingCustomization = true; // Set the flag
         customizationScreen.classList.add('hidden');
         
+        // Remove guest message if it exists
+        const guestMessage = document.getElementById('guestMessage');
+        if (guestMessage) {
+            guestMessage.remove();
+        }
+        
+        // Re-enable customization elements
+        const colorWheel = document.getElementById('color-picker-wheel');
+        const saveButton = document.getElementById('saveCustomizationButton');
+        const inventoryContainer = document.getElementById('inventoryContainer');
+        
+        if (colorWheel) colorWheel.style.opacity = '1';
+        if (saveButton) saveButton.disabled = false;
+        if (inventoryContainer) inventoryContainer.style.opacity = '1';
+        
         // Save current customization
         await saveCurrentCustomization();
         
