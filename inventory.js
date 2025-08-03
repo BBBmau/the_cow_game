@@ -27,6 +27,11 @@ export function initializeInventory() {
     populateGrid();
 }
 
+// Make it available globally for use in index.html
+window.initializeInventory = initializeInventory;
+window.resetCustomization = resetCustomization;
+window.saveCurrentCustomization = saveCurrentCustomization;
+
 function setupNavigation() {
     const navButtons = document.querySelectorAll('.nav-btn');
     
