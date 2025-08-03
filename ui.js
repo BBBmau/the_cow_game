@@ -231,6 +231,9 @@ export function initializeUI(callbacks, getState) {
     let cowColorPicker;
     let originalColor;
     let isIntentionallyClosingCustomization = false; // Add this flag
+    
+    // Make cowColorPicker available globally
+    window.cowColorPicker = cowColorPicker;
 
     function showCustomizationScreen(initialColor) {
         const { customizationScreen } = getDOMElements();
@@ -280,6 +283,9 @@ export function initializeUI(callbacks, getState) {
                         borderWidth: 1,
                         borderColor: '#fff',
                     });
+
+                    // Update global reference
+                    window.cowColorPicker = cowColorPicker;
 
                     cowColorPicker.on('color:change', function(color) {
                         console.log('Color changed to:', color.hexString);
@@ -494,3 +500,51 @@ export function initializeUI(callbacks, getState) {
     const initialCowColor = '#ffffff'; 
     callbacks.onCowColorChange(initialCowColor);
 }
+
+// Function to initialize color picker for new users
+function initializeColorPicker(initialColor = '#ffffff') {
+    console.log('Initializing color picker for new user with color:', initialColor);
+    
+    // Use setTimeout to ensure the DOM is fully visible before initializing the color picker
+    setTimeout(() => {
+        const container = document.getElementById('color-picker-wheel');
+        console.log('Color picker container:', container);
+        
+        // Check if iro is available
+        if (typeof iro === 'undefined') {
+            console.error('iro.js library is not loaded');
+            return;
+        }
+        
+        if (cowColorPicker) {
+            console.log('Updating existing color picker');
+            cowColorPicker.color.hexString = initialColor;
+        } else {
+            console.log('Creating new color picker');
+            try {
+                cowColorPicker = new iro.ColorPicker('#color-picker-wheel', {
+                    width: 280,
+                    color: initialColor,
+                    borderWidth: 1,
+                    borderColor: '#fff',
+                });
+
+                // Update global reference
+                window.cowColorPicker = cowColorPicker;
+
+                cowColorPicker.on('color:change', function(color) {
+                    console.log('Color changed to:', color.hexString);
+                    callbacks.onCowColorChange(color.hexString);
+                    updateCowColor(color.hexString); // Update the 3D preview
+                });
+                
+                console.log('Color picker created successfully');
+            } catch (error) {
+                console.error('Error creating color picker:', error);
+            }
+        }
+    }, 100); // Small delay to ensure DOM is ready
+}
+
+// Make color picker function available globally
+window.initializeColorPicker = initializeColorPicker;

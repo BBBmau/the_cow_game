@@ -1265,6 +1265,10 @@
                                         initializeCowPreview();
                                         updateCowColor(cowColor);
                                     }
+                                    // Initialize color picker
+                                    if (typeof initializeColorPicker === 'function') {
+                                        initializeColorPicker(cowColor);
+                                    }
                                 }
                             }
                         } else {
