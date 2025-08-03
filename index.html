@@ -525,12 +525,12 @@
 
         initializeUI({
             onStartGame: startGame,
-            onCowColorChange: (newColor) => {
+            onCowColorChange: (newColor, sendToServer = true) => {
                 cowColor = newColor; // 1. Update state
                 updatePlayerCow(newColor); // 2. Update model's color directly
 
-                // 3. Tell server
-                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                // 3. Tell server (only if sendToServer is true)
+                if (sendToServer && window.ws && window.ws.readyState === WebSocket.OPEN) {
                     window.ws.send(JSON.stringify({
                         type: 'update_color',
                         color: newColor
@@ -1218,6 +1218,56 @@
                         }
                         
                         addChatMessage('Welcome to the game!', 'system');
+                        break;
+                        
+                    case 'stats_updated':
+                        console.log('Received stats_updated message:', data);
+                        // Update player stats
+                        if (data.stats) {
+                            playerStats = { ...playerStats, ...data.stats };
+                        }
+                        
+                        // If this is a new user, redirect to customization
+                        if (data.isNewUser) {
+                            console.log('New user detected, redirecting to customization');
+                            // Exit pointer lock if active
+                            if (document.pointerLockElement) {
+                                document.exitPointerLock();
+                            }
+                            // Show customization screen with current color
+                            const customizationScreen = document.getElementById('customizationScreen');
+                            if (customizationScreen) {
+                                customizationScreen.classList.remove('hidden');
+                                
+                                // Check if user is guest (no password provided)
+                                const isGuest = !authInfo.isAuthenticated;
+                                
+                                if (isGuest) {
+                                    // Disable customization for guests
+                                    const colorWheel = document.getElementById('color-picker-wheel');
+                                    const saveButton = document.getElementById('saveCustomizationButton');
+                                    const inventoryContainer = document.getElementById('inventoryContainer');
+                                    
+                                    if (colorWheel) colorWheel.style.opacity = '0.5';
+                                    if (saveButton) saveButton.disabled = true;
+                                    if (inventoryContainer) inventoryContainer.style.opacity = '0.5';
+                                    
+                                    // Add guest message
+                                    const guestMessage = document.createElement('div');
+                                    guestMessage.innerHTML = '<p style="color: #ff6b6b; font-weight: bold; margin: 20px 0;">Guest users cannot customize their cow. Please create an account to unlock customization features.</p>';
+                                    guestMessage.id = 'guestMessage';
+                                    customizationScreen.insertBefore(guestMessage, customizationScreen.firstChild);
+                                } else {
+                                    // For authenticated users, just show the normal customization screen
+                                    // This will initialize everything properly (inventory, cow preview, color picker)
+                                    if (typeof showCustomizationScreen === 'function') {
+                                        showCustomizationScreen(cowColor);
+                                    }
+                                }
+                            }
+                        } else {
+                            console.log('Not a new user, isNewUser:', data.isNewUser);
+                        }
                         break;
 
                     case 'player_joined':

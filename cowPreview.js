@@ -128,4 +128,9 @@ export function dispose() {
         controls.dispose();
     }
     console.log('Cow preview disposed');
-} 
+}
+
+// Make functions available globally for use in index.html
+window.initializeCowPreview = initializeCowPreview;
+window.updateCowColor = updateCowColor;
+window.disposeCowPreview = dispose; 
