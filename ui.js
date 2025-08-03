@@ -1,4 +1,5 @@
 import { initializeCowPreview, updateCowColor, dispose as disposeCowPreview } from './cowPreview.js';
+import { initializeInventory, resetCustomization } from './inventory.js';
 
 // This file will handle all interactions with the HTML DOM, including the login screen, chat box, and leaderboard.
 
@@ -213,6 +214,9 @@ export function initializeUI(callbacks, getState) {
         initializeCowPreview();
         updateCowColor(initialColor);
 
+        // Initialize the inventory system
+        initializeInventory();
+
         // Use setTimeout to ensure the DOM is fully visible before initializing the color picker
         setTimeout(() => {
             const container = document.getElementById('color-picker-wheel');
@@ -264,6 +268,9 @@ export function initializeUI(callbacks, getState) {
         
         // Dispose of the 3D cow preview
         disposeCowPreview();
+        
+        // Reset inventory customization
+        resetCustomization();
     }
 
     // --- Login Form ---
