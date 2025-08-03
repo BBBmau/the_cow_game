@@ -44,16 +44,50 @@ jobs:
         repository: ${{ env.REPOSITORY }}
         image_name: ${{ env.IMAGE_NAME }}
         image_sha: ${{ github.sha }}
-        git_ref: ${{ github.ref }}
         tag_latest: true
 
-    - name: Deploy to GKE
-      uses: ./.github/actions/terraform-apply
-      with:
-        gcp_project_id: ${{ env.PROJECT_ID }}
-        gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
-        image_sha: ${{ steps.docker-build.outputs.full_sha }}
-        working_directory: 'infra'
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+      
+    - name: Install gke-gcloud-auth-plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+      
+    - name: Get GKE cluster credentials
+      run: |
+        gcloud container clusters get-credentials the-cow-game-cluster --region ${{ env.REGION }} --project ${{ env.PROJECT_ID }}
+
+    - name: Create credentials file for Terraform
+      run: |
+        mkdir -p ../../credentials
+        echo '${{ secrets.GCP_SA_KEY }}' > ../../credentials/thecowgame-clustermanager.json
+
+    - name: Terraform init
+      working-directory: infra
+      run: terraform init
+
+    - name: Force unlock if needed
+      working-directory: infra
+      run: |
+        # A failed plan may indicate a lock. We'll check for the lock string.
+        if ! terraform plan -detailed-exitcode > /dev/null 2>&1; then
+          echo "Terraform plan failed, checking for state lock..."
+          # Run plan again, capturing output to find the lock ID
+          LOCK_OUTPUT=$(terraform plan 2>&1 || true)
+          if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
+            LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | head -n 1 | tr -d '\n\r' || echo "")
+            if [ -n "$LOCK_ID" ]; then
+              echo "Found stale lock with ID: $LOCK_ID. Force unlocking..."
+              terraform force-unlock -force "$LOCK_ID" || echo "Lock may already be cleared"
+            fi
+          fi
+        fi
+
+    - name: Terraform apply
+      working-directory: infra
+      run: |
+        terraform apply -var="image_sha=${{ steps.docker-build.outputs.full_sha }}" -auto-approve
 
     - name: Check deployment status
       run: |
