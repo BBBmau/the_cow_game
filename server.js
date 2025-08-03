@@ -128,6 +128,72 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // Handle color save endpoint
+    if (req.url === '/save-color' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const { username, color } = JSON.parse(body);
+                console.log(`Save color request - Username: ${username}, Color: ${color}`);
+                
+                if (!username || !color) {
+                    console.log('Missing username or color in save request');
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Username and color required' }));
+                    return;
+                }
+
+                const result = await redisHelpers.savePlayerColor(username, color);
+                console.log(`Save color result:`, result);
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: true }));
+            } catch (error) {
+                console.error('Color save error:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Server error' }));
+            }
+        });
+        return;
+    }
+
+    // Handle color load endpoint
+    if (req.url.startsWith('/load-color') && req.method === 'GET') {
+        try {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const username = url.searchParams.get('username');
+            
+            console.log(`Load color request for username: ${username}`);
+            
+            if (!username) {
+                console.log('No username provided in load-color request');
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Username parameter required' }));
+                return;
+            }
+
+            const color = await redisHelpers.getPlayerColor(username);
+            console.log(`Retrieved color for ${username}: ${color}`);
+            
+            res.writeHead(200, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ color }));
+        } catch (error) {
+            console.error('Color load error:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Server error' }));
+        }
+        return;
+    }
+
     let filePath = '.' + req.url;
     if (filePath === './') {
         filePath = './index.html';

@@ -54,7 +54,8 @@ connectRedis();
 const REDIS_KEYS = {
     PLAYER_STATS: 'cow_game:stats:',
     GLOBAL_STATS: 'cow_game:global_stats',
-    USER_ACCOUNTS: 'cow_game:users:'
+    USER_ACCOUNTS: 'cow_game:users:',
+    PLAYER_COLORS: 'cow_game:colors:'
 };
 
 // Helper functions for stats
@@ -282,6 +283,32 @@ const redisHelpers = {
         
         await this.set(key, updatedStats, 86400 * 365); // 1 year
         return updatedStats;
+    },
+
+    // COLOR STORAGE FUNCTIONS
+    async savePlayerColor(username, color) {
+        const key = REDIS_KEYS.PLAYER_COLORS + username.toLowerCase();
+        console.log(`Saving color to Redis. Key: ${key}, Color: ${color}`);
+        const colorData = {
+            color: color,
+            updatedAt: Date.now()
+        };
+        const result = await this.set(key, colorData, 86400 * 365); // 1 year
+        console.log(`Save color result for ${username}: ${result}`);
+        return colorData;
+    },
+
+    async getPlayerColor(username) {
+        const key = REDIS_KEYS.PLAYER_COLORS + username.toLowerCase();
+        console.log(`Getting color from Redis. Key: ${key}`);
+        const colorData = await this.get(key);
+        console.log(`Raw color data from Redis for ${username}:`, colorData);
+        if (colorData) {
+            console.log(`Retrieved color for ${username}: ${colorData.color}`);
+            return colorData.color;
+        }
+        console.log(`No saved color found for ${username}, using default`);
+        return '#ffffff'; // Default white color
     }
 };
 

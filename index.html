@@ -501,12 +501,36 @@
                 };
             }
             
-            // Set color after potential auth, so it's not lost
-            // cowColor is already set by the color picker's on change event
+            // Load saved color from Redis
+            try {
+                console.log(`Attempting to load color for username: ${username}`);
+                const response = await fetch(`/load-color?username=${encodeURIComponent(username)}`);
+                console.log(`Load color response status: ${response.status}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log(`Load color response data:`, data);
+                    cowColor = data.color;
+                    console.log(`Loaded saved color for ${username}: ${cowColor}`);
+                } else {
+                    const errorText = await response.text();
+                    console.log(`No saved color found for ${username}, response: ${errorText}`);
+                    console.log(`Using default color: ${cowColor}`);
+                }
+            } catch (error) {
+                console.error('Error loading color from Redis:', error);
+                console.log(`Using default color due to error: ${cowColor}`);
+            }
         
             document.getElementById('loginScreen').classList.add('hidden');
             gameStarted = true;
             initGame(); // Call initGame without arguments
+            
+            // Store the loaded color to apply after WebSocket connection
+            if (cowColor && cowColor !== '#ffffff') {
+                console.log(`Storing loaded color for later application: ${cowColor}`);
+                window.loadedColor = cowColor;
+            }
         }
 
         initializeUI({
@@ -1152,6 +1176,22 @@
                     case 'init':
                         clientId = data.id;
                         console.log('Initialized with ID:', clientId);
+                        
+                        // Apply loaded color if we have one
+                        if (window.loadedColor && window.loadedColor !== '#ffffff') {
+                            console.log(`Applying loaded color after init: ${window.loadedColor}`);
+                            updatePlayerCow(window.loadedColor);
+                            cowColor = window.loadedColor;
+                            
+                            // Send color update to server
+                            window.ws.send(JSON.stringify({
+                                type: 'update_color',
+                                color: window.loadedColor
+                            }));
+                            
+                            // Clear the loaded color
+                            delete window.loadedColor;
+                        }
                         
                         // Update player stats if provided
                         if (data.stats) {
