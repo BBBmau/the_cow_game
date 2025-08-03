@@ -135,8 +135,10 @@ function checkUsernameAvailability(username, usernameStatus) {
 export function initializeUI(callbacks, getState) {
     let isCustomizationActive = false;
     let cowColorPicker;
+    let originalColor;
 
     function showCustomizationScreen(initialColor) {
+        originalColor = initialColor;
         isCustomizationActive = true;
         customizationScreen.classList.remove('hidden');
 
@@ -175,6 +177,7 @@ export function initializeUI(callbacks, getState) {
 
     saveCustomizationButton.addEventListener('click', () => {
         hideCustomizationScreen();
+        document.body.requestPointerLock();
     });
     
     usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') passwordInput.focus(); });
@@ -226,6 +229,7 @@ export function initializeUI(callbacks, getState) {
         // Consolidated Escape key handler
         if (e.key === 'Escape') {
             if (isCustomizationActive) {
+                callbacks.onCowColorChange(originalColor);
                 hideCustomizationScreen();
                 document.body.requestPointerLock();
             } else if (isChatActive) {
