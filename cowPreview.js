@@ -62,6 +62,19 @@ export function initializeCowPreview() {
         }
     });
 
+    // Add a subtle shadow plane beneath the cow
+    const shadowGeometry = new THREE.CircleGeometry(2, 32);
+    const shadowMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0x000000, 
+        transparent: true, 
+        opacity: 0.2 
+    });
+    const shadow = new THREE.Mesh(shadowGeometry, shadowMaterial);
+    shadow.rotation.x = -Math.PI / 2; // Lay flat
+    shadow.position.y = -0.5; // Position below the cow
+    shadow.receiveShadow = false; // Don't receive shadows, just cast them
+    scene.add(shadow);
+
     // Controls
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
