@@ -503,23 +503,14 @@
             
             // Load saved color from Redis
             try {
-                console.log(`Attempting to load color for username: ${username}`);
                 const response = await fetch(`/load-color?username=${encodeURIComponent(username)}`);
-                console.log(`Load color response status: ${response.status}`);
-                
                 if (response.ok) {
                     const data = await response.json();
-                    console.log(`Load color response data:`, data);
                     cowColor = data.color;
                     console.log(`Loaded saved color for ${username}: ${cowColor}`);
-                } else {
-                    const errorText = await response.text();
-                    console.log(`No saved color found for ${username}, response: ${errorText}`);
-                    console.log(`Using default color: ${cowColor}`);
                 }
             } catch (error) {
                 console.error('Error loading color from Redis:', error);
-                console.log(`Using default color due to error: ${cowColor}`);
             }
         
             document.getElementById('loginScreen').classList.add('hidden');
@@ -528,7 +519,6 @@
             
             // Store the loaded color to apply after WebSocket connection
             if (cowColor && cowColor !== '#ffffff') {
-                console.log(`Storing loaded color for later application: ${cowColor}`);
                 window.loadedColor = cowColor;
             }
         }
@@ -1179,7 +1169,6 @@
                         
                         // Apply loaded color if we have one
                         if (window.loadedColor && window.loadedColor !== '#ffffff') {
-                            console.log(`Applying loaded color after init: ${window.loadedColor}`);
                             updatePlayerCow(window.loadedColor);
                             cowColor = window.loadedColor;
                             
@@ -1189,7 +1178,6 @@
                                 color: window.loadedColor
                             }));
                             
-                            // Clear the loaded color
                             delete window.loadedColor;
                         }
                         

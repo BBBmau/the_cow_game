@@ -137,17 +137,14 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const { username, color } = JSON.parse(body);
-                console.log(`Save color request - Username: ${username}, Color: ${color}`);
                 
                 if (!username || !color) {
-                    console.log('Missing username or color in save request');
                     res.writeHead(400, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: 'Username and color required' }));
                     return;
                 }
 
-                const result = await redisHelpers.savePlayerColor(username, color);
-                console.log(`Save color result:`, result);
+                await redisHelpers.savePlayerColor(username, color);
                 
                 res.writeHead(200, { 
                     'Content-Type': 'application/json',
@@ -169,17 +166,13 @@ const server = http.createServer(async (req, res) => {
             const url = new URL(req.url, `http://${req.headers.host}`);
             const username = url.searchParams.get('username');
             
-            console.log(`Load color request for username: ${username}`);
-            
             if (!username) {
-                console.log('No username provided in load-color request');
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Username parameter required' }));
                 return;
             }
 
             const color = await redisHelpers.getPlayerColor(username);
-            console.log(`Retrieved color for ${username}: ${color}`);
             
             res.writeHead(200, { 
                 'Content-Type': 'application/json',
