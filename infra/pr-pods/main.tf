@@ -121,6 +121,10 @@ resource "kubernetes_deployment_v1" "gameserver" {
   spec {
     replicas = 1
     
+    strategy {
+      type = "Recreate"
+    }
+
     selector {
       match_labels = {
         app         = "cow-game-server"
