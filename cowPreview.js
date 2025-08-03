@@ -18,22 +18,26 @@ export function initializeCowPreview() {
 
     console.log('Initializing cow preview...');
 
-    // Scene setup
+    // Scene setup with transparent background
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB); // Sky blue background
+    scene.background = null; // Transparent background
 
     // Camera setup
     camera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
     camera.position.set(0, 2, 5);
 
-    // Renderer setup
-    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    // Renderer setup with transparency
+    renderer = new THREE.WebGLRenderer({ 
+        canvas: canvas, 
+        antialias: true,
+        alpha: true // Enable transparency
+    });
     renderer.setSize(canvas.width, canvas.height);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Lighting - adjusted for floating cow without ground
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Increased ambient light
     scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -42,6 +46,11 @@ export function initializeCowPreview() {
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
     scene.add(directionalLight);
+
+    // Add a second light from the opposite side for better illumination
+    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+    directionalLight2.position.set(-5, 5, -5);
+    scene.add(directionalLight2);
 
     // Create cow model using the same function as the game
     cowGroup = createCow('#ffffff');
@@ -61,14 +70,6 @@ export function initializeCowPreview() {
     controls.enablePan = false;
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.0;
-
-    // Ground plane
-    const groundGeometry = new THREE.PlaneGeometry(10, 10);
-    const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x90EE90 }); // Light green
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
 
     // Add the cow to the scene
     scene.add(cowGroup);
