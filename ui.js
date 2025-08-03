@@ -13,12 +13,38 @@ const playerStatsGrid = document.getElementById('playerStatsGrid');
 const globalStatsGrid = document.getElementById('globalStatsGrid');
 const onlinePlayersList = document.getElementById('onlinePlayersList');
 const customizationScreen = document.getElementById('customizationScreen');
-const customCowColorInput = document.getElementById('customCowColor');
 const saveCustomizationButton = document.getElementById('saveCustomizationButton');
+
+let cowColorPicker;
+
+function showCustomizationScreen(initialColor) {
+    isCustomizationActive = true;
+    customizationScreen.classList.remove('hidden');
+
+    if (cowColorPicker) {
+        cowColorPicker.color.hexString = initialColor;
+    } else {
+        cowColorPicker = new iro.ColorPicker('#color-picker-wheel', {
+            width: 280,
+            color: initialColor,
+            borderWidth: 1,
+            borderColor: '#fff',
+        });
+
+        cowColorPicker.on('color:change', function(color) {
+            callbacks.onCowColorChange(color.hexString);
+        });
+    }
+}
+
+function hideCustomizationScreen() {
+    isCustomizationActive = false;
+    customizationScreen.classList.add('hidden');
+}
 
 // --- Helper Functions ---
 
-export function addChatMessage(message, type = 'user') {
+export function addChatMessage(message, type = 'player') {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'chat-message';
     
@@ -84,16 +110,6 @@ function preventPointerLock(event) {
     }
 }
 
-function toggleCustomizationScreen(getState, show) {
-    isCustomizationActive = show;
-    customizationScreen.classList.toggle('hidden', !show);
-
-    if (show) {
-        const { cowColor } = getState();
-        customCowColorInput.value = cowColor;
-    }
-}
-
 function toggleLeaderboard(playerStats, globalStats, otherPlayers, username, getState) {
     isLeaderboardActive = !isLeaderboardActive;
     if (isLeaderboardActive) {
@@ -147,17 +163,17 @@ export function initializeUI(callbacks, getState) {
     // --- Login Form ---
     const usernameInput = document.getElementById('usernameInput');
     const passwordInput = document.getElementById('passwordInput');
-    const cowColorInput = document.getElementById('cowColor');
     const startButton = document.getElementById('startButton');
 
-    startButton.addEventListener('click', () => {
-        callbacks.onStartGame(usernameInput.value, passwordInput.value, customCowColorInput.value);
-    });
+    if (usernameInput && startButton) {
+        startButton.addEventListener('click', () => {
+            const initialColor = cowColorPicker ? cowColorPicker.color.hexString : '#ffffff';
+            callbacks.onStartGame(usernameInput.value, passwordInput.value, initialColor);
+        });
+    }
 
     saveCustomizationButton.addEventListener('click', () => {
-        const newColor = customCowColorInput.value;
-        callbacks.onCowColorChange(newColor);
-        toggleCustomizationScreen(getState, false); // Close screen after saving
+        hideCustomizationScreen();
     });
     
     usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') passwordInput.focus(); });
@@ -178,92 +194,86 @@ export function initializeUI(callbacks, getState) {
     });
 
     // --- Event Listeners ---
-    document.addEventListener('pointerlockchange', () => {
-        const { gameStarted } = getState();
-        if (!gameStarted) return;
-
-        if (document.pointerLockElement) {
-            // Mouse was just locked, close the customization screen if it's open
-            if (isCustomizationActive) {
-                toggleCustomizationScreen(getState, false);
-            }
-        } else {
-            // Mouse was just unlocked. Open the menu ONLY if no other menu is active.
-            if (!isLeaderboardActive && !isChatActive) {
-                toggleCustomizationScreen(getState, true);
-            }
-        }
-    }, false);
-
     document.addEventListener('keydown', (e) => {
         const state = getState();
+        if (!state.gameStarted) return;
 
-        // Chat Toggling (T key to open)
-        if (state.gameStarted && e.key.toLowerCase() === 't' && !isChatActive) {
-            e.preventDefault();
-            isChatActive = true;
-            chatInput.focus();
-            if (document.pointerLockElement === document.body) document.exitPointerLock();
-        }
-
-        // Leaderboard Toggling
+        // Toggle leaderboard with Tab
         if (e.key === 'Tab') {
-            if (!state.gameStarted) return;
             e.preventDefault();
-            toggleLeaderboard(state.playerStats, state.globalStats, state.otherPlayers, state.username, getState);
+            const { playerStats, globalStats, otherPlayers, username } = state;
+            toggleLeaderboard(playerStats, globalStats, otherPlayers, username, getState);
         }
 
-        // Stop game keys if chat is active
-        if (isChatActive && e.key.toLowerCase() !== 'escape') {
-            e.stopPropagation();
-        }
-
-        // Consolidated Escape key handler
+        // Close menus with Escape
         if (e.key === 'Escape') {
-            // If any modal is open, the respective handler will deal with it.
-            // If not, our only job is to exit pointer lock. The 'pointerlockchange'
-            // listener will then handle opening the menu.
-            if (isCustomizationActive) {
-                toggleCustomizationScreen(getState, false);
-                // After closing the menu, re-lock the pointer for gameplay
+            if (isLeaderboardActive) {
+                toggleLeaderboard(null, null, null, null, getState); // This handles its own pointer lock.
+            } else if (isCustomizationActive) {
+                hideCustomizationScreen();
                 document.body.requestPointerLock();
             } else if (isChatActive) {
-                isChatActive = false;
                 chatInput.blur();
                 document.body.requestPointerLock();
-            } else if (document.pointerLockElement) {
-                // This is the only place we should EXIT pointer lock via the Escape key.
-                // The pointerlockchange listener will then handle opening the menu.
+            } else if (document.pointerLockElement === document.body) {
                 document.exitPointerLock();
             }
         }
-    });
 
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && chatInput.value.trim()) {
-            e.preventDefault();
-            callbacks.onSendMessage(chatInput.value.trim());
-            chatInput.value = '';
-            isChatActive = false;
-            chatInput.blur();
+        // Open customization with 'C'
+        if (e.key.toLowerCase() === 'c' && !isLeaderboardActive && !isChatActive) {
+            if (isCustomizationActive) {
+                hideCustomizationScreen();
+            } else {
+                showCustomizationScreen(state.cowColor);
+            }
         }
     });
 
     chatInput.addEventListener('focus', () => {
         isChatActive = true;
-        chatInput.style.background = 'rgba(255, 255, 255, 1)';
     });
 
     chatInput.addEventListener('blur', () => {
         isChatActive = false;
-        chatInput.style.background = 'rgba(255, 255, 255, 0.9)';
     });
 
-    document.addEventListener('click', (event) => {
-        const { gameStarted } = getState();
-        if (!gameStarted || event.target.closest('#leaderboard, #customizationScreen, #chatContainer, #players, #coordinates, #debugView') || isLeaderboardActive || isCustomizationActive) {
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const message = chatInput.value;
+            if (message.trim()) {
+                callbacks.onSendMessage(message);
+                chatInput.value = '';
+            }
+        }
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+        const isLocked = document.pointerLockElement === document.body;
+        const state = getState();
+        if (!state.gameStarted) return;
+        
+        if (isLocked) {
+            // If we've just locked the pointer, hide any open menus.
+            if (isCustomizationActive) hideCustomizationScreen();
+        } else {
+            // If we've just unlocked, and no other menu is open, show the customization screen.
+            if (!isLeaderboardActive && !isChatActive) {
+                showCustomizationScreen(state.cowColor);
+            }
+        }
+    });
+
+    document.body.addEventListener('click', (e) => {
+        if (isChatActive || isLeaderboardActive || isCustomizationActive || e.target.closest('#chatContainer')) {
             return;
         }
-        if (!document.pointerLockElement) document.body.requestPointerLock();
+        if (!document.pointerLockElement) {
+            document.body.requestPointerLock();
+        }
     });
+
+    // Initial setup
+    const initialCowColor = '#ffffff'; 
+    callbacks.onCowColorChange(initialCowColor);
 }
