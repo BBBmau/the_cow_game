@@ -534,6 +534,7 @@ wss.on('connection', async (ws) => {
                         if (clientData) {
                             clientData.authenticatedUsername = data.username;
                             clientData.isGuest = false;
+                            clientData.isNewUser = authResult.isNewUser || false;
                             clients.set(clientId, clientData);
                         }
                     }
@@ -545,16 +546,33 @@ wss.on('connection', async (ws) => {
                     // Update username and color
                     const client = clients.get(clientId);
                     if (client) {
+                        console.log(`Processing set_username for: ${data.username}, isGuest: ${client.isGuest}`);
+                        
+                        // Check if this username already exists in Redis
+                        const existingUser = await redisHelpers.getUser(data.username);
+                        console.log(`Existing user check for ${data.username}:`, existingUser ? 'EXISTS' : 'NOT FOUND');
+                        
                         // For guest users, check if username is already registered
                         if (client.isGuest) {
-                            const existingUser = await redisHelpers.getUser(data.username);
+                            console.log(`Processing guest user: ${data.username}`);
                             if (existingUser) {
+                                console.log(`Guest tried to use existing username: ${data.username}`);
                                 ws.send(JSON.stringify({
                                     type: 'username_error',
                                     message: 'This username is already registered. Please choose a different name or log in with your password.'
                                 }));
                                 return;
                             }
+                            
+                            // This is a new user registration - create the user in Redis
+                            console.log(`Creating new guest user: ${data.username}`);
+                            await redisHelpers.createUser(data.username, ''); // Empty password for guest
+                            client.isNewUser = true;
+                            console.log(`Set isNewUser = true for guest: ${data.username}`);
+                        } else {
+                            // For authenticated users, use the isNewUser flag from authentication
+                            console.log(`Processing authenticated user: ${data.username}, isNewUser: ${client.isNewUser}`);
+                            // Don't override the isNewUser flag that was set during authentication
                         }
 
                         const oldUsername = client.username;
@@ -581,10 +599,13 @@ wss.on('connection', async (ws) => {
                         }
                         
                         // Send updated stats to the user
-                        ws.send(JSON.stringify({
+                        const statsMessage = {
                             type: 'stats_updated',
-                            stats: userStats
-                        }));
+                            stats: userStats,
+                            isNewUser: client.isNewUser || false
+                        };
+                        console.log(`Sending stats_updated message:`, statsMessage);
+                        ws.send(JSON.stringify(statsMessage));
                         
                         // Broadcast username and color update to all clients
                         broadcastToAll({

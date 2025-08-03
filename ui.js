@@ -231,6 +231,9 @@ export function initializeUI(callbacks, getState) {
     let cowColorPicker;
     let originalColor;
     let isIntentionallyClosingCustomization = false; // Add this flag
+    
+    // Make cowColorPicker available globally
+    window.cowColorPicker = cowColorPicker;
 
     function showCustomizationScreen(initialColor) {
         const { customizationScreen } = getDOMElements();
@@ -281,10 +284,16 @@ export function initializeUI(callbacks, getState) {
                         borderColor: '#fff',
                     });
 
-                    cowColorPicker.on('color:change', function(color) {
+                    // Update global reference
+                    window.cowColorPicker = cowColorPicker;
+
+                                                        cowColorPicker.on('color:change', function(color) {
                         console.log('Color changed to:', color.hexString);
-                        callbacks.onCowColorChange(color.hexString);
-                        updateCowColor(color.hexString); // Update the 3D preview
+                        // Only update the 3D preview during customization
+                        if (typeof updateCowColor === 'function') {
+                            updateCowColor(color.hexString);
+                        }
+                        // Don't send to server until user saves
                     });
                     
                     console.log('Color picker created successfully');
@@ -306,13 +315,83 @@ export function initializeUI(callbacks, getState) {
         isIntentionallyClosingCustomization = true; // Set the flag
         customizationScreen.classList.add('hidden');
         
+        // Remove guest message if it exists
+        const guestMessage = document.getElementById('guestMessage');
+        if (guestMessage) {
+            guestMessage.remove();
+        }
+        
+        // Re-enable customization elements
+        const colorWheel = document.getElementById('color-picker-wheel');
+        const saveButton = document.getElementById('saveCustomizationButton');
+        const inventoryContainer = document.getElementById('inventoryContainer');
+        
+        if (colorWheel) colorWheel.style.opacity = '1';
+        if (saveButton) saveButton.disabled = false;
+        if (inventoryContainer) inventoryContainer.style.opacity = '1';
+        
         // Save current customization
         await saveCurrentCustomization();
         
         // Save color to Redis
-        const state = getState();
         const currentColor = cowColorPicker ? cowColorPicker.color.hexString : '#ffffff';
-        await saveColorToRedis(state.username, currentColor);
+        
+        // Try to get username from state, fallback to global username
+        let username = null;
+        try {
+            const state = getState();
+            username = state.username;
+        } catch (error) {
+            console.log('getState not available, using global username');
+            username = window.currentUsername;
+        }
+        
+        if (username) {
+            await saveColorToRedis(username, currentColor);
+            console.log(`Color saved to Redis for ${username}: ${currentColor}`);
+            
+            // Now send the color update to the server
+            if (typeof callbacks !== 'undefined' && callbacks.onCowColorChange) {
+                callbacks.onCowColorChange(currentColor);
+            }
+        } else {
+            console.error('No username available for color saving');
+        }
+        
+        // Dispose of the 3D cow preview
+        disposeCowPreview();
+        
+        // Reset inventory customization
+        resetCustomization();
+    }
+
+    async function cancelCustomizationScreen() {
+        const { customizationScreen } = getDOMElements();
+        if (!customizationScreen) {
+            console.error('Customization screen element not found');
+            return;
+        }
+        
+        isCustomizationActive = false;
+        isIntentionallyClosingCustomization = true; // Set the flag
+        customizationScreen.classList.add('hidden');
+        
+        // Remove guest message if it exists
+        const guestMessage = document.getElementById('guestMessage');
+        if (guestMessage) {
+            guestMessage.remove();
+        }
+        
+        // Re-enable customization elements
+        const colorWheel = document.getElementById('color-picker-wheel');
+        const saveButton = document.getElementById('saveCustomizationButton');
+        const inventoryContainer = document.getElementById('inventoryContainer');
+        
+        if (colorWheel) colorWheel.style.opacity = '1';
+        if (saveButton) saveButton.disabled = false;
+        if (inventoryContainer) inventoryContainer.style.opacity = '1';
+        
+        // DON'T save anything - just cancel
         
         // Dispose of the 3D cow preview
         disposeCowPreview();
@@ -401,8 +480,9 @@ export function initializeUI(callbacks, getState) {
         // Consolidated Escape key handler
         if (e.key === 'Escape') {
             if (isCustomizationActive) {
-                callbacks.onCowColorChange(originalColor);
-                hideCustomizationScreen();
+                // Cancel customization - revert to original color locally only, don't send to server
+                callbacks.onCowColorChange(originalColor, false);
+                cancelCustomizationScreen();
                 document.body.requestPointerLock();
             } else if (isChatActive) {
                 isChatActive = false;
@@ -478,4 +558,12 @@ export function initializeUI(callbacks, getState) {
     // Initial setup
     const initialCowColor = '#ffffff'; 
     callbacks.onCowColorChange(initialCowColor);
+    
+    // Make functions available globally after they're defined
+    window.showCustomizationScreen = showCustomizationScreen;
+    window.hideCustomizationScreen = hideCustomizationScreen;
+    window.cancelCustomizationScreen = cancelCustomizationScreen;
+    window.cowColorPicker = cowColorPicker;
 }
+
+
