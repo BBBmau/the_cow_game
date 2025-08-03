@@ -1,5 +1,5 @@
 // 3D Cow Preview for Customization Screen
-let scene, camera, renderer, cowMesh, controls;
+let scene, camera, renderer, cowMesh, headMesh, controls;
 
 export function initializeCowPreview() {
     const canvas = document.getElementById('cowPreviewCanvas');
@@ -68,94 +68,70 @@ export function initializeCowPreview() {
 }
 
 function createCowModel() {
-    // Create a simple cow using basic geometric shapes
+    // Create the exact same cow model used in the game
     const cowGroup = new THREE.Group();
 
-    // Body (main part) - using cylinder instead of capsule
-    const bodyGeometry = new THREE.CylinderGeometry(1, 1, 2, 8);
-    const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    // Materials (same as in cow.js)
+    const white = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const black = new THREE.MeshStandardMaterial({ color: 0x000000 });
+    const pink = new THREE.MeshStandardMaterial({ color: 0xffa3b1 });
+    const brown = new THREE.MeshStandardMaterial({ color: 0x5a3a1a });
+
+    // Cow body
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), white);
     body.position.y = 1;
     body.castShadow = true;
     cowGroup.add(body);
 
     // Head
-    const headGeometry = new THREE.SphereGeometry(0.6, 8, 6);
-    const headMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.set(1.5, 1.5, 0);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.75, 0.75), white);
+    head.position.set(1.375, 1.25, 0);
     head.castShadow = true;
     cowGroup.add(head);
 
-    // Snout
-    const snoutGeometry = new THREE.CylinderGeometry(0.3, 0.4, 0.8, 8);
-    const snoutMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const snout = new THREE.Mesh(snoutGeometry, snoutMaterial);
-    snout.position.set(2.2, 1.3, 0);
-    snout.rotation.z = Math.PI / 2;
-    snout.castShadow = true;
-    cowGroup.add(snout);
-
-    // Ears
-    const earGeometry = new THREE.ConeGeometry(0.2, 0.4, 8);
-    const earMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown
-    const leftEar = new THREE.Mesh(earGeometry, earMaterial);
-    leftEar.position.set(1.3, 2.2, 0.3);
-    leftEar.rotation.z = -Math.PI / 6;
-    cowGroup.add(leftEar);
-
-    const rightEar = new THREE.Mesh(earGeometry, earMaterial);
-    rightEar.position.set(1.3, 2.2, -0.3);
-    rightEar.rotation.z = Math.PI / 6;
-    cowGroup.add(rightEar);
+    // Horns
+    const hornLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.25, 0.1), brown);
+    hornLeft.position.set(1.625, 1.625, -0.2);
+    const hornRight = hornLeft.clone();
+    hornRight.position.z = 0.2;
+    cowGroup.add(hornLeft, hornRight);
 
     // Legs
-    const legGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1.5, 8);
-    const legMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown
-    
-    const positions = [
-        [-0.5, 0, 0.5],   // Front left
-        [-0.5, 0, -0.5],  // Front right
-        [0.5, 0, 0.5],    // Back left
-        [0.5, 0, -0.5]    // Back right
-    ];
+    for (let i = -1; i <= 1; i += 2) {
+        for (let j = -0.4; j <= 0.4; j += 0.8) {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.25), black);
+            leg.position.set(i * 0.75, 0.5, j);
+            leg.castShadow = true;
+            cowGroup.add(leg);
+        }
+    }
 
-    positions.forEach(pos => {
-        const leg = new THREE.Mesh(legGeometry, legMaterial);
-        leg.position.set(pos[0], pos[1], pos[2]);
-        leg.castShadow = true;
-        cowGroup.add(leg);
+    // Udder
+    const udder = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.15, 0.25), pink);
+    udder.position.set(0, 0.35, 0);
+    cowGroup.add(udder);
+
+    // Black spots
+    const spots = [
+        [0.25, 1.25, 0.5],
+        [-0.5, 1, -0.5],
+        [-0.75, 1.15, 0],
+        [0.5, 1.1, -0.4],
+        [-0.4, 1.2, 0.4],
+        [0.6, 1.05, 0.25]
+    ];
+    spots.forEach(([x, y, z]) => {
+        const spot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.05), black);
+        spot.position.set(x, y, z);
+        cowGroup.add(spot);
     });
 
-    // Tail
-    const tailGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
-    const tailMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown
-    const tail = new THREE.Mesh(tailGeometry, tailMaterial);
-    tail.position.set(-1.5, 1.5, 0);
-    tail.rotation.z = -Math.PI / 4;
-    cowGroup.add(tail);
-
-    // Eyes
-    const eyeGeometry = new THREE.SphereGeometry(0.05, 8, 6);
-    const eyeMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 }); // Black
-    
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(1.8, 1.7, 0.3);
-    cowGroup.add(leftEye);
-
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(1.8, 1.7, -0.3);
-    cowGroup.add(rightEye);
-
-    // Nose
-    const noseGeometry = new THREE.SphereGeometry(0.08, 8, 6);
-    const noseMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 }); // Black
-    const nose = new THREE.Mesh(noseGeometry, noseMaterial);
-    nose.position.set(2.5, 1.3, 0);
-    cowGroup.add(nose);
+    // Rotate the entire cow model to make one side face forward (same as in cow.js)
+    cowGroup.rotation.y = Math.PI / 2;
 
     // Store the body mesh for color updates
     cowMesh = body;
+    headMesh = head; // Store the head mesh
     
     scene.add(cowGroup);
 }
@@ -173,10 +149,11 @@ function animate() {
 export function updateCowColor(color) {
     if (cowMesh) {
         cowMesh.material.color.setHex(color.replace('#', '0x'));
-        console.log('Updated cow color to:', color);
-    } else {
-        console.error('Cow mesh not found for color update');
     }
+    if (headMesh) {
+        headMesh.material.color.setHex(color.replace('#', '0x'));
+    }
+    console.log('Updated cow color to:', color);
 }
 
 export function dispose() {
