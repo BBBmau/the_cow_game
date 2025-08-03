@@ -128,6 +128,65 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // Handle color save endpoint
+    if (req.url === '/save-color' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const { username, color } = JSON.parse(body);
+                
+                if (!username || !color) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Username and color required' }));
+                    return;
+                }
+
+                await redisHelpers.savePlayerColor(username, color);
+                
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ success: true }));
+            } catch (error) {
+                console.error('Color save error:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Server error' }));
+            }
+        });
+        return;
+    }
+
+    // Handle color load endpoint
+    if (req.url.startsWith('/load-color') && req.method === 'GET') {
+        try {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const username = url.searchParams.get('username');
+            
+            if (!username) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Username parameter required' }));
+                return;
+            }
+
+            const color = await redisHelpers.getPlayerColor(username);
+            
+            res.writeHead(200, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ color }));
+        } catch (error) {
+            console.error('Color load error:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Server error' }));
+        }
+        return;
+    }
+
     let filePath = '.' + req.url;
     if (filePath === './') {
         filePath = './index.html';
