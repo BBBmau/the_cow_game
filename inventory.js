@@ -1,47 +1,6 @@
-// Inventory system for cow customization with single grid navigation
+// Inventory system for cow customization with server-side data
 
-// Sample inventory data organized by categories
-const inventoryData = {
-    hats: [
-        { id: 'hat_cowboy', name: 'Cowboy Hat', icon: '🤠', unlocked: true },
-        { id: 'hat_party', name: 'Party Hat', icon: '🎉', unlocked: true },
-        { id: 'hat_crown', name: 'Crown', icon: '👑', unlocked: false },
-        { id: 'hat_santa', name: 'Santa Hat', icon: '🎅', unlocked: false },
-        { id: 'hat_wizard', name: 'Wizard Hat', icon: '🧙‍♂️', unlocked: false },
-        { id: 'hat_chef', name: 'Chef Hat', icon: '👨‍🍳', unlocked: false }
-    ],
-    glasses: [
-        { id: 'glasses_sun', name: 'Sunglasses', icon: '😎', unlocked: true },
-        { id: 'glasses_nerd', name: 'Nerd Glasses', icon: '🤓', unlocked: false },
-        { id: 'glasses_monocle', name: 'Monocle', icon: '🧐', unlocked: false },
-        { id: 'glasses_3d', name: '3D Glasses', icon: '🎬', unlocked: false }
-    ],
-    accessories: [
-        { id: 'bow_tie', name: 'Bow Tie', icon: '🎀', unlocked: true },
-        { id: 'scarf', name: 'Scarf', icon: '🧣', unlocked: false },
-        { id: 'necklace', name: 'Necklace', icon: '💎', unlocked: false },
-        { id: 'bell', name: 'Bell', icon: '🔔', unlocked: true },
-        { id: 'flower', name: 'Flower', icon: '🌸', unlocked: false },
-        { id: 'bandana', name: 'Bandana', icon: '🧕', unlocked: false }
-    ],
-    patterns: [
-        { id: 'spots_black', name: 'Black Spots', icon: '⚫', unlocked: true },
-        { id: 'spots_brown', name: 'Brown Spots', icon: '🟤', unlocked: true },
-        { id: 'stripes', name: 'Stripes', icon: '〰️', unlocked: false },
-        { id: 'stars', name: 'Stars', icon: '⭐', unlocked: false },
-        { id: 'hearts', name: 'Hearts', icon: '💖', unlocked: false },
-        { id: 'rainbow', name: 'Rainbow', icon: '🌈', unlocked: false }
-    ],
-    effects: [
-        { id: 'sparkle', name: 'Sparkle', icon: '✨', unlocked: true },
-        { id: 'fire', name: 'Fire', icon: '🔥', unlocked: false },
-        { id: 'ice', name: 'Ice', icon: '❄️', unlocked: false },
-        { id: 'rainbow_trail', name: 'Rainbow Trail', icon: '🌈', unlocked: false },
-        { id: 'confetti', name: 'Confetti', icon: '🎊', unlocked: false },
-        { id: 'bubbles', name: 'Bubbles', icon: '🫧', unlocked: false }
-    ]
-};
-
+let inventoryData = {};
 let currentCategory = 'hats';
 let selectedItems = {
     hats: null,
@@ -51,9 +10,72 @@ let selectedItems = {
     effects: null
 };
 
-export function initializeInventory() {
-    setupNavigation();
-    populateGrid();
+export async function initializeInventory(username) {
+    try {
+        // Fetch inventory data from server
+        const response = await fetch(`/inventory?username=${encodeURIComponent(username)}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        inventoryData = await response.json();
+        console.log('Inventory loaded from server:', inventoryData);
+        
+        setupNavigation();
+        populateGrid();
+        
+        // Load saved customization
+        await loadCustomization(username);
+        
+    } catch (error) {
+        console.error('Error loading inventory:', error);
+        // Fallback to empty inventory
+        inventoryData = {
+            hats: [],
+            glasses: [],
+            accessories: [],
+            patterns: [],
+            effects: []
+        };
+        setupNavigation();
+        populateGrid();
+    }
+}
+
+async function loadCustomization(username) {
+    try {
+        const response = await fetch(`/load-customization?username=${encodeURIComponent(username)}`);
+        if (response.ok) {
+            const customization = await response.json();
+            selectedItems = customization;
+            console.log('Loaded customization:', customization);
+        }
+    } catch (error) {
+        console.error('Error loading customization:', error);
+    }
+}
+
+async function saveCustomization(username) {
+    try {
+        const response = await fetch('/save-customization', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                customization: selectedItems
+            })
+        });
+        
+        if (response.ok) {
+            console.log('Customization saved successfully');
+        } else {
+            console.error('Failed to save customization');
+        }
+    } catch (error) {
+        console.error('Error saving customization:', error);
+    }
 }
 
 function setupNavigation() {
@@ -85,7 +107,7 @@ function populateGrid() {
     
     gridElement.innerHTML = '';
     
-    const items = inventoryData[currentCategory];
+    const items = inventoryData[currentCategory] || [];
     items.forEach(item => {
         const itemElement = createInventoryItem(item);
         gridElement.appendChild(itemElement);
@@ -155,6 +177,10 @@ export function getCurrentCustomization() {
         pattern: selectedItems.patterns?.id || null,
         effect: selectedItems.effects?.id || null
     };
+}
+
+export async function saveCurrentCustomization(username) {
+    await saveCustomization(username);
 }
 
 export function resetCustomization() {

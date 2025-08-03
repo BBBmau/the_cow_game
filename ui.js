@@ -1,5 +1,5 @@
 import { initializeCowPreview, updateCowColor, dispose as disposeCowPreview } from './cowPreview.js';
-import { initializeInventory, resetCustomization } from './inventory.js';
+import { initializeInventory, resetCustomization, saveCurrentCustomization } from './inventory.js';
 
 // This file will handle all interactions with the HTML DOM, including the login screen, chat box, and leaderboard.
 
@@ -255,7 +255,7 @@ export function initializeUI(callbacks, getState) {
         }, 100); // Small delay to ensure DOM is ready
     }
 
-    function hideCustomizationScreen() {
+    async function hideCustomizationScreen() {
         const { customizationScreen } = getDOMElements();
         if (!customizationScreen) {
             console.error('Customization screen element not found');
@@ -265,6 +265,9 @@ export function initializeUI(callbacks, getState) {
         isCustomizationActive = false;
         isIntentionallyClosingCustomization = true; // Set the flag
         customizationScreen.classList.add('hidden');
+        
+        // Save current customization
+        await saveCurrentCustomization();
         
         // Dispose of the 3D cow preview
         disposeCowPreview();
