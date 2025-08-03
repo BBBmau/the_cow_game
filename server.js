@@ -825,14 +825,16 @@ const PORT = 6060;
 async function startServer() {
     try {
         await initializeRedis();
+    
         
         server.listen(PORT, () => {
-            console.log(`Server running at http://localhost:${PORT}/`);
-            console.log('Redis integration enabled');
-            
-            // Start hay spawning system
-            hayManager.startSpawning();
+            console.log(`Server running on port ${PORT}`);
+            console.log(`Health check: http://localhost:${PORT}/health`);
         });
+        
+        // Start hay spawning system
+        hayManager.startSpawning();
+        
     } catch (error) {
         console.error('Failed to start server:', error);
         process.exit(1);
