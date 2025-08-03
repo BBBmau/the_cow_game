@@ -335,17 +335,15 @@
     <div id="customizationScreen" class="hidden">
         <div id="customizationContainer">
             <h2>Customize Your Cow</h2>
-            <div style="margin: 20px 0;">
-                <label for="customCowColor">Cow Color:</label>
-                <input type="color" id="customCowColor" value="#ffffff" style="margin-left: 10px;">
-            </div>
-            <button id="saveCustomizationButton">Save & Close</button>
+            <div id="color-picker-wheel" style="margin: 20px auto; display: flex; justify-content: center;"></div>
+            <button id="saveCustomizationButton" style="margin-top: 20px;">Save & Close</button>
             <p style="font-size: 12px; color: #666; margin-top: 10px;">
                 Press ESC to close without saving.
             </p>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script type="module">
@@ -391,7 +389,7 @@
             }
         }
 
-        async function startGame(newUsername, password, newCowColor) {
+        async function startGame(newUsername, password) {
             username = newUsername.trim();
             const pass = password.trim();
         
@@ -416,7 +414,7 @@
             }
             
             // Set color after potential auth, so it's not lost
-            cowColor = newCowColor;
+            // cowColor is already set by the color picker's on change event
         
             document.getElementById('loginScreen').classList.add('hidden');
             gameStarted = true;
