@@ -46,6 +46,7 @@ jobs:
         repository: ${{ env.REPOSITORY }}
         image_name: ${{ env.IMAGE_NAME }}
         image_sha: ${{ github.event.pull_request.head.sha }}
+        git_ref: ${{ github.event.pull_request.head.ref }}
 
     - name: Create Terraform variables file
       working-directory: ./infra/pr-pods

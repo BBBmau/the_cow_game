@@ -44,6 +44,7 @@ jobs:
         repository: ${{ env.REPOSITORY }}
         image_name: ${{ env.IMAGE_NAME }}
         image_sha: ${{ github.sha }}
+        git_ref: ${{ github.ref }}
         tag_latest: true
 
     - name: Deploy to GKE
