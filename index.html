@@ -389,7 +389,7 @@
             }
         }
 
-        async function startGame(newUsername, password, newCowColor) {
+        async function startGame(newUsername, password) {
             username = newUsername.trim();
             const pass = password.trim();
         
@@ -414,7 +414,7 @@
             }
             
             // Set color after potential auth, so it's not lost
-            cowColor = newCowColor;
+            // cowColor is already set by the color picker's on change event
         
             document.getElementById('loginScreen').classList.add('hidden');
             gameStarted = true;

@@ -3,7 +3,6 @@
 // --- State ---
 export let isChatActive = false;
 export let isLeaderboardActive = false;
-let isCustomizationActive = false;
 
 // --- DOM Elements ---
 const chatMessages = document.getElementById('chatMessages');
@@ -15,35 +14,6 @@ const onlinePlayersList = document.getElementById('onlinePlayersList');
 const customizationScreen = document.getElementById('customizationScreen');
 const saveCustomizationButton = document.getElementById('saveCustomizationButton');
 
-let cowColorPicker;
-
-function showCustomizationScreen(initialColor) {
-    isCustomizationActive = true;
-    customizationScreen.classList.remove('hidden');
-
-    if (cowColorPicker) {
-        cowColorPicker.color.hexString = initialColor;
-    } else {
-        cowColorPicker = new iro.ColorPicker('#color-picker-wheel', {
-            width: 280,
-            color: initialColor,
-            borderWidth: 1,
-            borderColor: '#fff',
-        });
-
-        cowColorPicker.on('color:change', function(color) {
-            callbacks.onCowColorChange(color.hexString);
-        });
-    }
-}
-
-function hideCustomizationScreen() {
-    isCustomizationActive = false;
-    customizationScreen.classList.add('hidden');
-    if (!document.pointerLockElement) {
-        document.body.requestPointerLock();
-    }
-}
 
 // --- Helper Functions ---
 
@@ -163,6 +133,34 @@ function checkUsernameAvailability(username, usernameStatus) {
 // --- Main Setup Function ---
 
 export function initializeUI(callbacks, getState) {
+    let isCustomizationActive = false;
+    let cowColorPicker;
+
+    function showCustomizationScreen(initialColor) {
+        isCustomizationActive = true;
+        customizationScreen.classList.remove('hidden');
+
+        if (cowColorPicker) {
+            cowColorPicker.color.hexString = initialColor;
+        } else {
+            cowColorPicker = new iro.ColorPicker('#color-picker-wheel', {
+                width: 280,
+                color: initialColor,
+                borderWidth: 1,
+                borderColor: '#fff',
+            });
+
+            cowColorPicker.on('color:change', function(color) {
+                callbacks.onCowColorChange(color.hexString);
+            });
+        }
+    }
+
+    function hideCustomizationScreen() {
+        isCustomizationActive = false;
+        customizationScreen.classList.add('hidden');
+    }
+
     // --- Login Form ---
     const usernameInput = document.getElementById('usernameInput');
     const passwordInput = document.getElementById('passwordInput');
