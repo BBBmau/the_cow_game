@@ -525,12 +525,12 @@
 
         initializeUI({
             onStartGame: startGame,
-            onCowColorChange: (newColor) => {
+            onCowColorChange: (newColor, sendToServer = true) => {
                 cowColor = newColor; // 1. Update state
                 updatePlayerCow(newColor); // 2. Update model's color directly
 
-                // 3. Tell server
-                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                // 3. Tell server (only if sendToServer is true)
+                if (sendToServer && window.ws && window.ws.readyState === WebSocket.OPEN) {
                     window.ws.send(JSON.stringify({
                         type: 'update_color',
                         color: newColor

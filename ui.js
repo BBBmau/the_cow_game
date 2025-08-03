@@ -365,6 +365,41 @@ export function initializeUI(callbacks, getState) {
         resetCustomization();
     }
 
+    async function cancelCustomizationScreen() {
+        const { customizationScreen } = getDOMElements();
+        if (!customizationScreen) {
+            console.error('Customization screen element not found');
+            return;
+        }
+        
+        isCustomizationActive = false;
+        isIntentionallyClosingCustomization = true; // Set the flag
+        customizationScreen.classList.add('hidden');
+        
+        // Remove guest message if it exists
+        const guestMessage = document.getElementById('guestMessage');
+        if (guestMessage) {
+            guestMessage.remove();
+        }
+        
+        // Re-enable customization elements
+        const colorWheel = document.getElementById('color-picker-wheel');
+        const saveButton = document.getElementById('saveCustomizationButton');
+        const inventoryContainer = document.getElementById('inventoryContainer');
+        
+        if (colorWheel) colorWheel.style.opacity = '1';
+        if (saveButton) saveButton.disabled = false;
+        if (inventoryContainer) inventoryContainer.style.opacity = '1';
+        
+        // DON'T save anything - just cancel
+        
+        // Dispose of the 3D cow preview
+        disposeCowPreview();
+        
+        // Reset inventory customization
+        resetCustomization();
+    }
+
     // --- Login Form ---
     const usernameInput = document.getElementById('usernameInput');
     const passwordInput = document.getElementById('passwordInput');
@@ -445,8 +480,9 @@ export function initializeUI(callbacks, getState) {
         // Consolidated Escape key handler
         if (e.key === 'Escape') {
             if (isCustomizationActive) {
-                callbacks.onCowColorChange(originalColor);
-                hideCustomizationScreen();
+                // Cancel customization - revert to original color locally only, don't send to server
+                callbacks.onCowColorChange(originalColor, false);
+                cancelCustomizationScreen();
                 document.body.requestPointerLock();
             } else if (isChatActive) {
                 isChatActive = false;
@@ -526,6 +562,7 @@ export function initializeUI(callbacks, getState) {
     // Make functions available globally after they're defined
     window.showCustomizationScreen = showCustomizationScreen;
     window.hideCustomizationScreen = hideCustomizationScreen;
+    window.cancelCustomizationScreen = cancelCustomizationScreen;
     window.cowColorPicker = cowColorPicker;
 }
 
