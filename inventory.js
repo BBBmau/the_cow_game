@@ -1,6 +1,17 @@
-// Inventory system for cow customization with server-side data
+// Inventory system for cow customization - simulating server response
 
-let inventoryData = {};
+// Simulate server response data
+const mockServerResponse = {
+    hats: [
+        { id: 'hat_cowboy', name: 'TESTING (WILL BE REMOVED)', icon: '🤠', unlocked: false },
+    ],
+    glasses: [],
+    accessories: [],
+    patterns: [],
+    effects: []
+};
+
+let inventoryData = mockServerResponse;
 let currentCategory = 'hats';
 let selectedItems = {
     hats: null,
@@ -10,72 +21,10 @@ let selectedItems = {
     effects: null
 };
 
-export async function initializeInventory(username) {
-    try {
-        // Fetch inventory data from server
-        const response = await fetch(`/inventory?username=${encodeURIComponent(username)}`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        inventoryData = await response.json();
-        console.log('Inventory loaded from server:', inventoryData);
-        
-        setupNavigation();
-        populateGrid();
-        
-        // Load saved customization
-        await loadCustomization(username);
-        
-    } catch (error) {
-        console.error('Error loading inventory:', error);
-        // Fallback to empty inventory
-        inventoryData = {
-            hats: [],
-            glasses: [],
-            accessories: [],
-            patterns: [],
-            effects: []
-        };
-        setupNavigation();
-        populateGrid();
-    }
-}
-
-async function loadCustomization(username) {
-    try {
-        const response = await fetch(`/load-customization?username=${encodeURIComponent(username)}`);
-        if (response.ok) {
-            const customization = await response.json();
-            selectedItems = customization;
-            console.log('Loaded customization:', customization);
-        }
-    } catch (error) {
-        console.error('Error loading customization:', error);
-    }
-}
-
-async function saveCustomization(username) {
-    try {
-        const response = await fetch('/save-customization', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                username: username,
-                customization: selectedItems
-            })
-        });
-        
-        if (response.ok) {
-            console.log('Customization saved successfully');
-        } else {
-            console.error('Failed to save customization');
-        }
-    } catch (error) {
-        console.error('Error saving customization:', error);
-    }
+export function initializeInventory() {
+    console.log('Initializing inventory with mock server data:', inventoryData);
+    setupNavigation();
+    populateGrid();
 }
 
 function setupNavigation() {
@@ -104,7 +53,6 @@ function populateGrid() {
     const gridElement = document.getElementById('inventoryGrid');
     
     if (!gridElement) return;
-    
     gridElement.innerHTML = '';
     
     const items = inventoryData[currentCategory] || [];
@@ -179,8 +127,10 @@ export function getCurrentCustomization() {
     };
 }
 
-export async function saveCurrentCustomization(username) {
-    await saveCustomization(username);
+export function saveCurrentCustomization() {
+    // Simulate saving to server
+    console.log('Saving customization to server:', selectedItems);
+    return Promise.resolve(true);
 }
 
 export function resetCustomization() {
