@@ -40,6 +40,9 @@ function showCustomizationScreen(initialColor) {
 function hideCustomizationScreen() {
     isCustomizationActive = false;
     customizationScreen.classList.add('hidden');
+    if (!document.pointerLockElement) {
+        document.body.requestPointerLock();
+    }
 }
 
 // --- Helper Functions ---
@@ -193,10 +196,22 @@ export function initializeUI(callbacks, getState) {
         usernameCheckTimeout = setTimeout(() => checkUsernameAvailability(username, usernameStatus), 500);
     });
 
+    customizationScreen.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+
     // --- Event Listeners ---
     document.addEventListener('keydown', (e) => {
         const state = getState();
         if (!state.gameStarted) return;
+
+        // Open chat with 'T'
+        if (e.key.toLowerCase() === 't' && !isChatActive) {
+            e.preventDefault();
+            chatInput.focus();
+            if (document.pointerLockElement) document.exitPointerLock();
+            return;
+        }
 
         // Toggle leaderboard with Tab
         if (e.key === 'Tab') {
@@ -205,17 +220,25 @@ export function initializeUI(callbacks, getState) {
             toggleLeaderboard(playerStats, globalStats, otherPlayers, username, getState);
         }
 
-        // Close menus with Escape
+        // Stop game keys if chat is active
+        if (isChatActive && e.key.toLowerCase() !== 'escape') {
+            e.stopPropagation();
+        }
+
+        // Consolidated Escape key handler
         if (e.key === 'Escape') {
-            if (isLeaderboardActive) {
-                toggleLeaderboard(null, null, null, null, getState); // This handles its own pointer lock.
-            } else if (isCustomizationActive) {
+            if (isCustomizationActive) {
                 hideCustomizationScreen();
                 document.body.requestPointerLock();
             } else if (isChatActive) {
+                isChatActive = false;
                 chatInput.blur();
                 document.body.requestPointerLock();
-            } else if (document.pointerLockElement === document.body) {
+            } else if (isLeaderboardActive) {
+                // Let the toggle function handle it, which will re-lock pointer.
+                toggleLeaderboard(null, null, null, null, getState);
+            } else if (document.pointerLockElement) {
+                // If no menus are open, pressing ESC should unlock the pointer to open the customization menu.
                 document.exitPointerLock();
             }
         }
@@ -250,22 +273,18 @@ export function initializeUI(callbacks, getState) {
 
     document.addEventListener('pointerlockchange', () => {
         const isLocked = document.pointerLockElement === document.body;
-        const state = getState();
-        if (!state.gameStarted) return;
-        
-        if (isLocked) {
-            // If we've just locked the pointer, hide any open menus.
-            if (isCustomizationActive) hideCustomizationScreen();
-        } else {
-            // If we've just unlocked, and no other menu is open, show the customization screen.
-            if (!isLeaderboardActive && !isChatActive) {
+        if (!isLocked && !isChatActive && !isLeaderboardActive) {
+            const state = getState();
+            if (state.gameStarted) {
                 showCustomizationScreen(state.cowColor);
             }
         }
     });
 
     document.body.addEventListener('click', (e) => {
-        if (isChatActive || isLeaderboardActive || isCustomizationActive || e.target.closest('#chatContainer')) {
+        const target = e.target;
+        // Prevent pointer lock when clicking on any interactive UI element.
+        if (target.closest('#chatContainer, #leaderboard, #players, #coordinates, #debugView, button, input')) {
             return;
         }
         if (!document.pointerLockElement) {
