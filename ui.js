@@ -290,7 +290,10 @@ export function initializeUI(callbacks, getState) {
             return;
         }
         if (!document.pointerLockElement) {
-            document.body.requestPointerLock();
+            const state = getState();
+            if (state.gameStarted) {
+                document.body.requestPointerLock();
+            }
         }
     });
 
