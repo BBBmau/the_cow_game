@@ -823,3 +823,44 @@ async function startServer() {
 }
 
 startServer();
+
+// --- Graceful Shutdown ---
+function gracefulShutdown(signal) {
+    console.log(`Received ${signal}. Shutting down gracefully...`);
+
+    // 1. Stop accepting new connections
+    server.close(async () => {
+        console.log('HTTP server closed. No longer accepting new connections.');
+
+        // 2. Disconnect WebSocket clients
+        console.log(`Closing ${wss.clients.size} WebSocket connections...`);
+        wss.clients.forEach(ws => {
+            ws.close(1012, 'Server is shutting down');
+        });
+
+        // 3. Stop background tasks
+        hayManager.stopSpawning();
+        console.log('Background tasks stopped.');
+
+        // 4. Close Redis connection
+        try {
+            await client.quit();
+            console.log('Redis connection closed.');
+        } catch (err) {
+            console.error('Error closing Redis connection:', err);
+        }
+
+        // 5. Exit the process
+        console.log('Shutdown complete.');
+        process.exit(0);
+    });
+
+    // Force shutdown if graceful shutdown fails after a timeout
+    setTimeout(() => {
+        console.error('Graceful shutdown timed out. Forcing exit.');
+        process.exit(1);
+    }, 10000); // 10 seconds
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
