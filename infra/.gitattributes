@@ -1,5 +1,0 @@
-.terraform filter=lfs diff=lfs merge=lfs -text
-.terraform/providers/registry.terraform.io/hashicorp/kubernetes/2.37.1/linux_amd64/terraform-provider-kubernetes_v2.37.1_x5 filter=lfs diff=lfs merge=lfs -text
-.terraform/providers/registry.terraform.io/hashicorp/google/6.38.0/linux_amd64/terraform-provider-google_v6.38.0_x5 filter=lfs diff=lfs merge=lfs -text
-.terraform/providers/registry.terraform.io/hashicorp/google-beta/6.7.0/linux_amd64/terraform-provider-google-beta_v6.7.0_x5 filter=lfs diff=lfs merge=lfs -text
-.terraform/providers/registry.terraform.io/hashicorp/google-beta/6.38.0/linux_amd64/terraform-provider-google-beta_v6.38.0_x5 filter=lfs diff=lfs merge=lfs -text
