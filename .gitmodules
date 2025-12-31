@@ -1,0 +1,3 @@
+[submodule "infra"]
+	path = infra
+	url = git@github.com:BBBmau/the_cow_game_infra.git
