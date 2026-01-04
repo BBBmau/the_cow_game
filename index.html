@@ -503,11 +503,13 @@
             
             // Load saved color from Redis
             try {
-                const response = await fetch(`/load-color?username=${encodeURIComponent(username)}`);
+                const response = await fetch(`/user/${encodeURIComponent(username)}`);
                 if (response.ok) {
                     const data = await response.json();
-                    cowColor = data.color;
-                    console.log(`Loaded saved color for ${username}: ${cowColor}`);
+                    if (data.color) {
+                        cowColor = data.color;
+                        console.log(`Loaded saved color for ${username}: ${cowColor}`);
+                    }
                 }
             } catch (error) {
                 console.error('Error loading color from Redis:', error);

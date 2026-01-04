@@ -43,15 +43,11 @@ function checkLibrariesLoaded() {
 
 async function saveColorToRedis(username, color) {
     try {
-        const response = await fetch('/save-color', {
-            method: 'POST',
+        const response = await fetch(`/user/${encodeURIComponent(username)}?color=${encodeURIComponent(color)}`, {
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                username: username,
-                color: color
-            })
+            }
         });
         
         if (response.ok) {
@@ -66,11 +62,11 @@ async function saveColorToRedis(username, color) {
 
 async function loadColorFromRedis(username) {
     try {
-        const response = await fetch(`/load-color?username=${encodeURIComponent(username)}`);
+        const response = await fetch(`/user/${encodeURIComponent(username)}`);
         if (response.ok) {
             const data = await response.json();
-            console.log(`Color loaded from Redis for ${username}: ${data.color}`);
-            return data.color;
+            console.log(`Color loaded from Redis for ${username}: ${data.color || '#ffffff'}`);
+            return data.color || '#ffffff'; // Default white if no color
         } else {
             console.error('Failed to load color from Redis');
             return '#ffffff'; // Default white
@@ -202,10 +198,9 @@ function toggleLeaderboard(playerStats, globalStats, otherPlayers, username, get
 function checkUsernameAvailability(username, usernameStatus) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
-    fetch('/check-username', {
-        method: 'POST',
+    fetch(`/user/${encodeURIComponent(username)}`, {
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
         signal: controller.signal
     })
     .then(response => {

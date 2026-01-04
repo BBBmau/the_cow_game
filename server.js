@@ -35,7 +35,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {
         res.writeHead(200, {
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type',
             'Access-Control-Max-Age': '86400'
         });
@@ -70,20 +70,48 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // Handle username check endpoint
-    if (req.url === '/check-username' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
-        req.on('end', async () => {
+    // Helper function to parse user endpoint
+    function parseUserEndpoint(url, host) {
+        try {
+            const urlObj = new URL(url, `http://${host || 'localhost'}`);
+            const pathMatch = urlObj.pathname.match(/^\/user\/([^\/]+)$/);
+            
+            if (!pathMatch) {
+                return null;
+            }
+            
+            return {
+                username: decodeURIComponent(pathMatch[1]),
+                query: urlObj.searchParams
+            };
+        } catch (error) {
+            return null;
+        }
+    }
+
+    // Handle user endpoint (replaces check-username, save-color, load-color)
+    if (req.url.startsWith('/user/')) {
+        const parsed = parseUserEndpoint(req.url, req.headers.host);
+        
+        if (!parsed) {
+            res.writeHead(400, { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ error: 'Invalid user endpoint format' }));
+            return;
+        }
+        
+        const { username, query } = parsed;
+        
+        // GET /user/{username} - Check availability and get user profile
+        if (req.method === 'GET') {
             try {
-                const { username } = JSON.parse(body);
                 console.log(`Checking username availability: ${username}`);
                 
                 // Add timeout for Redis operations
                 const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('Redis timeout')), 5000); // 5 second timeout
+                    setTimeout(() => reject(new Error('Redis timeout')), 5000);
                 });
                 
                 try {
@@ -93,97 +121,102 @@ const server = http.createServer(async (req, res) => {
                     ]);
                     
                     const isAvailable = !existingUser;
+                    const color = existingUser ? await redisHelpers.getPlayerColor(username) : null;
+                    
                     console.log(`Username ${username} availability: ${isAvailable}`);
                     
                     res.writeHead(200, { 
                         'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Methods': 'POST',
-                        'Access-Control-Allow-Headers': 'Content-Type'
+                        'Access-Control-Allow-Origin': '*'
                     });
                     res.end(JSON.stringify({
                         available: isAvailable,
+                        exists: !isAvailable,
+                        color: color || null,
                         message: isAvailable ? 'Username available' : 'Username already taken'
                     }));
                 } catch (redisError) {
-                    console.error('Redis error during username check:', redisError);
+                    console.error('Redis error during user lookup:', redisError);
                     // Fallback: assume username is available if Redis is unavailable
                     res.writeHead(200, { 
                         'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Methods': 'POST',
-                        'Access-Control-Allow-Headers': 'Content-Type'
+                        'Access-Control-Allow-Origin': '*'
                     });
                     res.end(JSON.stringify({
                         available: true,
+                        exists: false,
+                        color: null,
                         message: 'Username available (Redis unavailable)'
                     }));
                 }
             } catch (error) {
-                console.error('Username check parsing error:', error);
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ available: false, message: 'Invalid request' }));
-            }
-        });
-        return;
-    }
-
-    // Handle color save endpoint
-    if (req.url === '/save-color' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
-        req.on('end', async () => {
-            try {
-                const { username, color } = JSON.parse(body);
-                
-                if (!username || !color) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Username and color required' }));
-                    return;
-                }
-
-                await redisHelpers.savePlayerColor(username, color);
-                
-                res.writeHead(200, { 
+                console.error('User lookup error:', error);
+                res.writeHead(500, { 
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*'
                 });
-                res.end(JSON.stringify({ success: true }));
-            } catch (error) {
-                console.error('Color save error:', error);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Server error' }));
             }
-        });
-        return;
-    }
-
-    // Handle color load endpoint
-    if (req.url.startsWith('/load-color') && req.method === 'GET') {
-        try {
-            const url = new URL(req.url, `http://${req.headers.host}`);
-            const username = url.searchParams.get('username');
-            
-            if (!username) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Username parameter required' }));
-                return;
-            }
-
-            const color = await redisHelpers.getPlayerColor(username);
-            
-            res.writeHead(200, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify({ color }));
-        } catch (error) {
-            console.error('Color load error:', error);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Server error' }));
+            return;
         }
+        
+        // PUT /user/{username}?color=...&other=... - Create or update user profile
+        if (req.method === 'PUT') {
+            let body = '';
+            req.on('data', chunk => {
+                body += chunk.toString();
+            });
+            req.on('end', async () => {
+                try {
+                    // Get color from query parameter or request body
+                    let color = query.get('color');
+                    if (!color && body) {
+                        try {
+                            const bodyData = JSON.parse(body);
+                            color = bodyData.color;
+                        } catch (e) {
+                            // Body is not JSON, ignore
+                        }
+                    }
+                    
+                    // You can add more customization parameters here
+                    // const otherParam = query.get('other');
+                    
+                    if (color) {
+                        await redisHelpers.savePlayerColor(username, color);
+                        console.log(`Color saved for ${username}: ${color}`);
+                    }
+                    
+                    res.writeHead(200, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+                        'Access-Control-Allow-Headers': 'Content-Type'
+                    });
+                    res.end(JSON.stringify({ 
+                        success: true,
+                        username: username,
+                        color: color || null
+                    }));
+                } catch (error) {
+                    console.error('User update error:', error);
+                    res.writeHead(500, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    });
+                    res.end(JSON.stringify({ error: 'Server error' }));
+                }
+            });
+            return;
+        }
+        
+        // Handle unsupported methods
+        res.writeHead(405, { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Allow': 'GET, PUT, OPTIONS'
+        });
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
         return;
     }
 
