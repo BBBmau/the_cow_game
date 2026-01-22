@@ -89,7 +89,56 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
-    // Handle user endpoint (replaces check-username, save-color, load-color)
+    if (req.url.startsWith('/login')) {
+        if (req.method !== 'POST') {
+            res.writeHead(405, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+        }
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            const { username, password } = JSON.parse(body);
+            const user = await authenticateUser(username, password);
+            if (!user.success) {
+                res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ error: user.message }));
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: true, message: 'Login successful', user: user.user, token: user.token }));
+            return;
+        });
+        return;
+    }
+
+    if (req.url.startsWith('/register')) {
+        if (req.method !== 'POST') {
+            res.writeHead(405, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+        }
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            const { username, password } = JSON.parse(body);
+            const user = await registerUser(username, password);
+            if (!user.success) {
+                res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ error: user.message }));
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: true, message: 'Registration successful', user: user.user }));
+            return;
+        });
+        return;
+    }
+
     if (req.url.startsWith('/user/')) {
         const parsed = parseUserEndpoint(req.url, req.headers.host);
         

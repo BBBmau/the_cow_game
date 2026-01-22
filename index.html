@@ -1096,14 +1096,6 @@
                         username: authInfo.username,
                         password: authInfo.password
                     }));
-                } else {
-                    // Guest mode - send username directly
-                    console.log('Guest mode - sending username:', username);
-                    window.ws.send(JSON.stringify({
-                        type: 'set_username',
-                        username: username,
-                        color: cowColor
-                    }));
                 }
             };
 
@@ -1321,12 +1313,6 @@
                         if (isLeaderboardActive) {
                             updateLeaderboard(playerStats, globalStats, otherPlayers, username);
                         }
-                        break;
-
-                    case 'username_update':
-                        console.log('Username update:', data);
-                        updatePlayerUsername(data);
-                        addChatMessage(`${data.oldUsername} is now known as ${data.username}`, 'system');
                         break;
 
                     case 'chat_message':
