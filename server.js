@@ -221,7 +221,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     let filePath = '.' + req.url;
-    if (filePath === './') {
+    if (filePath === './game') {
         filePath = './index.html';
     }
 
