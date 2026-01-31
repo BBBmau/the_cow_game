@@ -1,10 +1,13 @@
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
 
 const WebSocket = require('ws');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Import Redis connection for stats
 const { client, redisHelpers, REDIS_KEYS } = require('./redis.js');
@@ -231,12 +234,22 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
-        let filePath = '.' + pathname;
-        // Serve /game and /game/* from the game/ directory
-        if (filePath === './game' || filePath === './game/') {
-            filePath = './game/index.html';
+        // Serve /game and /game/* from the game/ directory (relative to server.js, not cwd)
+        const gameDir = path.join(__dirname, 'game');
+        let filePath;
+        if (pathname === '/game' || pathname === '/game/') {
+            filePath = path.join(gameDir, 'index.html');
+        } else if (pathname.startsWith('/game/')) {
+            const subpath = pathname.slice('/game/'.length);
+            if (subpath.includes('..')) {
+                res.writeHead(404);
+                res.end('File not found');
+                return;
+            }
+            filePath = path.join(gameDir, subpath);
+        } else {
+            filePath = path.join(__dirname, pathname.slice(1) || '');
         }
-        // /game/xxx stays as ./game/xxx (files live in game/)
 
         const extname = path.extname(filePath);
         let contentType = 'text/html';
