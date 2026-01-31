@@ -263,20 +263,28 @@ const server = http.createServer(async (req, res) => {
                 break;
         }
 
-        fs.readFile(filePath, (error, content) => {
-            if (error) {
-                if (error.code === 'ENOENT') {
-                    res.writeHead(404);
-                    res.end('File not found');
+        const trySend = (p) => {
+            fs.readFile(p, (error, content) => {
+                if (error) {
+                    if (error.code === 'ENOENT') {
+                        // Fallback: if path was not under /game/, try game dir (e.g. /cow.js → game/cow.js)
+                        if (p !== path.join(gameDir, path.basename(p)) && pathname.match(/\.(js|css|html)$/)) {
+                            const fallback = path.join(gameDir, path.basename(pathname));
+                            return trySend(fallback);
+                        }
+                        res.writeHead(404);
+                        res.end('File not found');
+                    } else {
+                        res.writeHead(500);
+                        res.end('Server Error: ' + error.code);
+                    }
                 } else {
-                    res.writeHead(500);
-                    res.end('Server Error: ' + error.code);
+                    res.writeHead(200, { 'Content-Type': contentType });
+                    res.end(content, 'utf-8');
                 }
-            } else {
-                res.writeHead(200, { 'Content-Type': contentType });
-                res.end(content, 'utf-8');
-            }
-        });
+            });
+        };
+        trySend(filePath);
     } catch (err) {
         console.error('Request handler error:', err);
         if (!res.headersSent) {
