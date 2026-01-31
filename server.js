@@ -31,21 +31,25 @@ client.on('end', () => {
 
 // Create HTTP server
 const server = http.createServer(async (req, res) => {
-    // Handle CORS preflight requests
-    if (req.method === 'OPTIONS') {
-        res.writeHead(200, {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Access-Control-Max-Age': '86400'
-        });
-        res.end();
-        return;
-    }
+    // Path without query string (load balancers often add ? to health checks)
+    const pathname = (req.url || '/').split('?')[0];
 
-    // Handle health check endpoint
-    if (req.url === '/health' && req.method === 'GET') {
-        res.writeHead(200, { 
+    try {
+        // Handle CORS preflight requests
+        if (req.method === 'OPTIONS') {
+            res.writeHead(200, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Max-Age': '86400'
+            });
+            res.end();
+            return;
+        }
+
+        // Handle health check endpoint
+        if (pathname === '/health' && req.method === 'GET') {
+            res.writeHead(200, { 
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
         });
@@ -53,22 +57,29 @@ const server = http.createServer(async (req, res) => {
             status: 'ok', 
             timestamp: new Date().toISOString(),
             redis: isRedisConnected ? 'connected' : 'disconnected'
-        }));
-        return;
-    }
+            }));
+            return;
+        }
 
-    // Simple test endpoint that doesn't require Redis
-    if (req.url === '/test' && req.method === 'GET') {
-        res.writeHead(200, { 
+        // Simple test endpoint that doesn't require Redis
+        if (pathname === '/test' && req.method === 'GET') {
+            res.writeHead(200, { 
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
         });
         res.end(JSON.stringify({ 
             message: 'Server is responding',
             timestamp: new Date().toISOString()
-        }));
-        return;
-    }
+            }));
+            return;
+        }
+
+        // Root path: return 200 so GKE load balancer health checks pass
+        if (pathname === '/' && req.method === 'GET') {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+            return;
+        }
 
     // Helper function to parse user endpoint
     function parseUserEndpoint(url, host) {
@@ -89,23 +100,23 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
-    // Handle user endpoint (replaces check-username, save-color, load-color)
-    if (req.url.startsWith('/user/')) {
-        const parsed = parseUserEndpoint(req.url, req.headers.host);
-        
-        if (!parsed) {
-            res.writeHead(400, { 
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify({ error: 'Invalid user endpoint format' }));
-            return;
-        }
-        
-        const { username, query } = parsed;
-        
-        // GET /user/{username} - Check availability and get user profile
-        if (req.method === 'GET') {
+        // Handle user endpoint (replaces check-username, save-color, load-color)
+        if (pathname.startsWith('/user/')) {
+            const parsed = parseUserEndpoint(req.url || '', req.headers.host);
+
+            if (!parsed) {
+                res.writeHead(400, {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ error: 'Invalid user endpoint format' }));
+                return;
+            }
+
+            const { username, query } = parsed;
+
+            // GET /user/{username} - Check availability and get user profile
+            if (req.method === 'GET') {
             try {
                 console.log(`Checking username availability: ${username}`);
                 
@@ -157,16 +168,16 @@ const server = http.createServer(async (req, res) => {
                 });
                 res.end(JSON.stringify({ error: 'Server error' }));
             }
-            return;
-        }
-        
-        // PUT /user/{username}?color=...&other=... - Create or update user profile
-        if (req.method === 'PUT') {
-            let body = '';
-            req.on('data', chunk => {
-                body += chunk.toString();
-            });
-            req.on('end', async () => {
+                return;
+            }
+
+            // PUT /user/{username}?color=...&other=... - Create or update user profile
+            if (req.method === 'PUT') {
+                let body = '';
+                req.on('data', chunk => {
+                    body += chunk.toString();
+                });
+                req.on('end', async () => {
                 try {
                     // Get color from query parameter or request body
                     let color = query.get('color');
@@ -206,54 +217,61 @@ const server = http.createServer(async (req, res) => {
                     });
                     res.end(JSON.stringify({ error: 'Server error' }));
                 }
-            });
-            return;
-        }
-        
-        // Handle unsupported methods
-        res.writeHead(405, { 
+                });
+                return;
+            }
+
+            // Handle unsupported methods
+            res.writeHead(405, { 
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
             'Allow': 'GET, PUT, OPTIONS'
-        });
-        res.end(JSON.stringify({ error: 'Method not allowed' }));
-        return;
-    }
-
-    let filePath = '.' + req.url;
-    // Treat /game and /game/* as app root so script/style paths resolve correctly
-    if (filePath === './game' || filePath === './game/') {
-        filePath = './index.html';
-    } else if (filePath.startsWith('./game/')) {
-        filePath = '.' + filePath.slice('./game'.length);
-    }
-
-    const extname = path.extname(filePath);
-    let contentType = 'text/html';
-    
-    switch (extname) {
-        case '.js':
-            contentType = 'text/javascript';
-            break;
-        case '.css':
-            contentType = 'text/css';
-            break;
-    }
-
-    fs.readFile(filePath, (error, content) => {
-        if (error) {
-            if(error.code === 'ENOENT') {
-                res.writeHead(404);
-                res.end('File not found');
-            } else {
-                res.writeHead(500);
-                res.end('Server Error: ' + error.code);
-            }
-        } else {
-            res.writeHead(200, { 'Content-Type': contentType });
-            res.end(content, 'utf-8');
+            });
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
         }
-    });
+
+        let filePath = '.' + pathname;
+        // Treat /game and /game/* as app root so script/style paths resolve correctly
+        if (filePath === './game' || filePath === './game/') {
+            filePath = './index.html';
+        } else if (filePath.startsWith('./game/')) {
+            filePath = '.' + filePath.slice('./game'.length);
+        }
+
+        const extname = path.extname(filePath);
+        let contentType = 'text/html';
+
+        switch (extname) {
+            case '.js':
+                contentType = 'text/javascript';
+                break;
+            case '.css':
+                contentType = 'text/css';
+                break;
+        }
+
+        fs.readFile(filePath, (error, content) => {
+            if (error) {
+                if (error.code === 'ENOENT') {
+                    res.writeHead(404);
+                    res.end('File not found');
+                } else {
+                    res.writeHead(500);
+                    res.end('Server Error: ' + error.code);
+                }
+            } else {
+                res.writeHead(200, { 'Content-Type': contentType });
+                res.end(content, 'utf-8');
+            }
+        });
+    } catch (err) {
+        console.error('Request handler error:', err);
+        if (!res.headersSent) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Server error' }));
+        }
+    }
 });
 
 // Create WebSocket server attached to the HTTP server
