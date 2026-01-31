@@ -34,12 +34,60 @@ To run locally simply do the following:
    node test-redis.js
    ```
 
-4. **Start the game server:**
+4. **Start the game server from the repo root** (the folder that contains both `server.js` and the `game/` folder):
    ```bash
+   cd /path/to/the_cow_game
    node server.js
    ```
    
-   The game will be available at `http://localhost:6060`
+   You should see:
+   ```
+   Server running on port 6060
+     Game:    http://localhost:6060/game
+     Health:  http://localhost:6060/health
+   ```
+
+## Debugging locally
+
+To debug static file serving (e.g. `/game/cow.js` 404s), run with debug logging:
+
+```bash
+npm run dev
+# or: DEBUG=1 node server.js
+```
+
+Then open the game and watch the terminal. Each request for a static file will log:
+- `pathname` – URL path requested
+- `filePath` – resolved filesystem path
+- `gameDir` – path to the `game/` directory
+- `__dirname` – directory containing `server.js`
+- `exists` – whether the file was found
+
+**Quick checks:**
+
+1. **From repo root** (required so `game/` is next to `server.js`):
+   ```bash
+   cd /path/to/the_cow_game
+   DEBUG=1 node server.js
+   ```
+
+2. **Test in browser:**  
+   Open `http://localhost:6060/game` and check the terminal for `[static]` lines when the page loads scripts.
+
+3. **Test with curl:**
+   ```bash
+   curl -I http://localhost:6060/game
+   curl -I http://localhost:6060/game/cow.js
+   curl -I http://localhost:6060/game/ui.js
+   ```
+   Expect `200 OK` for each.
+
+4. **Match production (Docker):**
+   ```bash
+   docker build -t cow-game .
+   docker run -p 6060:6060 -e REDIS_HOST=host.docker.internal cow-game
+   ```
+   Then test `http://localhost:6060/game` and `http://localhost:6060/game/cow.js` again. On Linux you may need `--add-host=host.docker.internal:host-gateway` for Redis.
 
 ## Redis Integration
 

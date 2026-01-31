@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <base href="/game/">
     <title>3D Field Scene</title>
     <style>
         body { margin: 0; }
@@ -435,8 +436,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script type="module">
-        import { createCow, updateCowMovement } from '/game/cow.js';
-        import { initializeUI, addChatMessage, updateLeaderboard, isLeaderboardActive } from '/game/ui.js';
+        import { createCow, updateCowMovement } from './cow.js';
+        import { initializeUI, addChatMessage, updateLeaderboard, isLeaderboardActive } from './ui.js';
 
         let username = '';
         let cowColor = '#ffffff';

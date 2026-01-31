@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DEBUG_STATIC = process.env.DEBUG === '1' || process.env.DEBUG === 'static';
 
 // Import Redis connection for stats
 const { client, redisHelpers, REDIS_KEYS } = require('./redis.js');
@@ -251,6 +252,17 @@ const server = http.createServer(async (req, res) => {
             filePath = path.join(__dirname, pathname.slice(1) || '');
         }
 
+        if (DEBUG_STATIC) {
+            const exists = fs.existsSync(filePath);
+            console.log('[static]', {
+                pathname,
+                filePath,
+                gameDir,
+                __dirname,
+                exists
+            });
+        }
+
         const extname = path.extname(filePath);
         let contentType = 'text/html';
 
@@ -267,9 +279,15 @@ const server = http.createServer(async (req, res) => {
             fs.readFile(p, (error, content) => {
                 if (error) {
                     if (error.code === 'ENOENT') {
+                        if (DEBUG_STATIC) {
+                            console.log('[static] 404 tried path:', p);
+                        }
                         // Fallback: if path was not under /game/, try game dir (e.g. /cow.js → game/cow.js)
                         if (p !== path.join(gameDir, path.basename(p)) && pathname.match(/\.(js|css|html)$/)) {
                             const fallback = path.join(gameDir, path.basename(pathname));
+                            if (DEBUG_STATIC) {
+                                console.log('[static] fallback to:', fallback, 'exists:', fs.existsSync(fallback));
+                            }
                             return trySend(fallback);
                         }
                         res.writeHead(404);
@@ -982,8 +1000,17 @@ async function startServer() {
     
         
         server.listen(PORT, () => {
+            const gameDir = path.join(__dirname, 'game');
+            const gameIndexExists = fs.existsSync(path.join(gameDir, 'index.html'));
+            const gameCowExists = fs.existsSync(path.join(gameDir, 'cow.js'));
             console.log(`Server running on port ${PORT}`);
-            console.log(`Health check: http://localhost:${PORT}/health`);
+            console.log(`  Game:    http://localhost:${PORT}/game`);
+            console.log(`  Health:  http://localhost:${PORT}/health`);
+            if (!gameIndexExists || !gameCowExists) {
+                console.warn(`  WARN: game/ files missing (index.html: ${gameIndexExists}, cow.js: ${gameCowExists})`);
+                console.warn(`  __dirname: ${__dirname}`);
+                console.warn(`  Run the server from the repo root (directory containing server.js and game/)`);
+            }
         });
         
         // Start hay spawning system
