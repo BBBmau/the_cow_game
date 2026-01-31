@@ -232,12 +232,11 @@ const server = http.createServer(async (req, res) => {
         }
 
         let filePath = '.' + pathname;
-        // Treat /game and /game/* as app root so script/style paths resolve correctly
+        // Serve /game and /game/* from the game/ directory
         if (filePath === './game' || filePath === './game/') {
-            filePath = './index.html';
-        } else if (filePath.startsWith('./game/')) {
-            filePath = '.' + filePath.slice('./game'.length);
+            filePath = './game/index.html';
         }
+        // /game/xxx stays as ./game/xxx (files live in game/)
 
         const extname = path.extname(filePath);
         let contentType = 'text/html';
