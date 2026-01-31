@@ -1010,6 +1010,8 @@ async function startServer() {
                 console.warn(`  WARN: game/ files missing (index.html: ${gameIndexExists}, cow.js: ${gameCowExists})`);
                 console.warn(`  __dirname: ${__dirname}`);
                 console.warn(`  Run the server from the repo root (directory containing server.js and game/)`);
+            } else {
+                console.log(`  game/ resolved: ${gameDir}`);
             }
         });
         
