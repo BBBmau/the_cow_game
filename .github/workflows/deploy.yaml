@@ -65,28 +65,11 @@ jobs:
         mkdir -p ../../credentials
         echo '${{ secrets.GCP_SA_KEY }}' > ../../credentials/thecowgame-clustermanager.json
 
-    - name: Terraform init
-      working-directory: infra
-      run: terraform init
-
-    - name: Terraform apply
-      working-directory: infra
-      run: |
-        terraform apply -var="image_sha=${{ steps.docker-build.outputs.full_sha }}" -auto-approve
-
-    - name: Force unlock state on apply failure or cancel
-      if: failure() || cancelled()
-      working-directory: infra
-      run: |
-        LOCK_OUTPUT=$(terraform plan 2>&1 || true)
-        if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
-          LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | head -n 1 | tr -d '\n\r' || echo "")
-          if [ -n "$LOCK_ID" ]; then
-            echo "Clearing stale lock ID: $LOCK_ID"
-            terraform force-unlock -force "$LOCK_ID"
-          fi
-        fi
-        
+    - name: Terraform apply (with unlock retry on failure)
+      uses: ./.github/actions/terraform-apply-with-retry
+      with:
+        working-directory: infra
+        image_sha: ${{ steps.docker-build.outputs.full_sha }}
     - name: Check deployment status
       run: |
         kubectl get pods -n default

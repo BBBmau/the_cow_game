@@ -1,0 +1,49 @@
+name: 'Terraform apply with unlock retry'
+description: 'Runs terraform apply; on failure, force-unlocks state and retries once'
+
+inputs:
+  working-directory:
+    description: 'Directory containing Terraform config'
+    required: false
+    default: 'infra'
+  image_sha:
+    description: 'Docker image SHA for terraform apply -var'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Terraform apply
+      id: apply
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        terraform apply -var="image_sha=${{ inputs.image_sha }}" -auto-approve
+
+    - name: Force unlock state on apply failure
+      if: steps.apply.outcome == 'failure' || steps.apply.outcome == 'cancelled'
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        LOCK_OUTPUT=$(terraform plan 2>&1 || true)
+        if echo "$LOCK_OUTPUT" | grep -q "Error acquiring the state lock"; then
+          LOCK_ID=$(echo "$LOCK_OUTPUT" | grep -oP 'ID:\s+\K\d+' | head -n 1 | tr -d '\n\r' || echo "")
+          if [ -n "$LOCK_ID" ]; then
+            echo "Clearing stale lock ID: $LOCK_ID"
+            terraform force-unlock -force "$LOCK_ID"
+          fi
+        fi
+      shell: bash
+
+    - name: Terraform apply (retry after unlock)
+      id: retry
+      if: steps.apply.outcome == 'failure' || steps.apply.outcome == 'cancelled'
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      run: |
+        terraform apply -var="image_sha=${{ inputs.image_sha }}" -auto-approve
+
+    - name: Fail job if apply and retry both failed
+      if: (steps.apply.outcome == 'failure' || steps.apply.outcome == 'cancelled') && steps.retry.outcome != 'success'
+      shell: bash
+      run: exit 1
