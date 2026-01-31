@@ -17,7 +17,6 @@ runs:
   using: composite
   steps:
     - name: Create credentials file for Terraform
-      working-directory: ${{ inputs.working-directory }}
       shell: bash
       run: |
         mkdir -p credentials
