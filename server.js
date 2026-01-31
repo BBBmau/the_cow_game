@@ -221,8 +221,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     let filePath = '.' + req.url;
-    if (filePath === './game') {
+    // Treat /game and /game/* as app root so script/style paths resolve correctly
+    if (filePath === './game' || filePath === './game/') {
         filePath = './index.html';
+    } else if (filePath.startsWith('./game/')) {
+        filePath = '.' + filePath.slice('./game'.length);
     }
 
     const extname = path.extname(filePath);
