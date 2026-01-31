@@ -47,10 +47,6 @@ jobs:
         image_name: ${{ env.IMAGE_NAME }}
         image_sha: ${{ github.sha }}
         tag_latest: true
-
-    - name: Set up Terraform
-      uses: hashicorp/setup-terraform@v3
-      
     - name: Install gke-gcloud-auth-plugin
       run: |
         gcloud components install gke-gcloud-auth-plugin
@@ -60,15 +56,11 @@ jobs:
       run: |
         gcloud container clusters get-credentials the-cow-game-cluster --region ${{ env.REGION }} --project ${{ env.PROJECT_ID }}
 
-    - name: Create credentials file for Terraform
-      run: |
-        mkdir -p ../../credentials
-        echo '${{ secrets.GCP_SA_KEY }}' > ../../credentials/thecowgame-clustermanager.json
-
     - name: Terraform apply (with unlock retry on failure)
       uses: ./.github/actions/terraform-apply-with-retry
       with:
         working-directory: infra
+        gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
         image_sha: ${{ steps.docker-build.outputs.full_sha }}
     - name: Check deployment status
       run: |

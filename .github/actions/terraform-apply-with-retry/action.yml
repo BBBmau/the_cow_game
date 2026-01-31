@@ -2,6 +2,9 @@ name: 'Terraform apply with unlock retry'
 description: 'Runs terraform apply; on failure, force-unlocks state and retries once'
 
 inputs:
+  gcp_sa_key:
+    description: 'GCP Service Account Key'
+    required: true
   working-directory:
     description: 'Directory containing Terraform config'
     required: false
@@ -13,6 +16,21 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Create credentials file for Terraform
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      run: |
+        mkdir -p credentials
+        echo '${{ inputs.gcp_sa_key }}' > credentials/thecowgame-clustermanager.json
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+      
+    - name: Terraform init
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      run: terraform init
+
     - name: Terraform apply
       id: apply
       working-directory: ${{ inputs.working-directory }}
