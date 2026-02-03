@@ -78,10 +78,33 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
-        // Root path: return 200 so GKE load balancer health checks pass
+        // Root path: serve welcome page (health checks still get 200)
         if (pathname === '/' && req.method === 'GET') {
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('OK');
+            const welcomePath = path.join(__dirname, 'public', 'index.html');
+            fs.readFile(welcomePath, (err, content) => {
+                if (err) {
+                    res.writeHead(500, { 'Content-Type': 'text/plain' });
+                    res.end('Server Error');
+                    return;
+                }
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end(content, 'utf-8');
+            });
+            return;
+        }
+
+        // Welcome page screenshot
+        if (pathname === '/welcome.png' && req.method === 'GET') {
+            const imgPath = path.join(__dirname, 'public', 'welcome.png');
+            fs.readFile(imgPath, (err, content) => {
+                if (err) {
+                    res.writeHead(404);
+                    res.end('Not found');
+                    return;
+                }
+                res.writeHead(200, { 'Content-Type': 'image/png' });
+                res.end(content);
+            });
             return;
         }
 
@@ -631,8 +654,6 @@ wss.on('connection', async (ws) => {
                         }
                     }
                     break;
-
-
 
                 case 'set_username':
                     // Update username and color
