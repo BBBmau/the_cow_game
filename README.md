@@ -89,32 +89,6 @@ Then open the game and watch the terminal. Each request for a static file will l
    ```
    Then test `http://localhost:6060/game` and `http://localhost:6060/game/cow.js` again. On Linux you may need `--add-host=host.docker.internal:host-gateway` for Redis.
 
-### Debugging imports when deployed
-
-If the game page loads but scripts (cow.js, ui.js) fail to load in production:
-
-1. **Browser Network tab**  
-   Open your deployed site, go to `/game`, open DevTools → Network. Reload. Check the requests for `cow.js` and `ui.js`:
-   - **Request URL** – should be `https://your-domain.com/game/cow.js` (and `/game/ui.js`). If it’s `/cow.js` (no `/game/`), the base URL or imports are wrong.
-   - **Status** – 200 = server served the file; 404 = request didn’t reach the right handler or file wasn’t found.
-
-2. **Ingress path**  
-   In `infra/K8s.tf`, the `/game` rule must use `path_type = "Prefix"` so that `/game`, `/game/`, and `/game/cow.js` (etc.) all match and are sent to your backend. If it was `ImplementationSpecific`, update and re-apply Terraform.
-
-3. **Server diagnostic (deployed)**  
-   Set `DEBUG=1` (or `DEBUG=static`) in your deployment’s env, redeploy, then open:
-   ```text
-   https://your-domain.com/debug-static
-   ```
-   You should see JSON with `__dirname`, `gameDir`, and whether `game/index.html`, `game/cow.js`, `game/ui.js` exist. If any file is `false`, the container doesn’t have those files or `__dirname` is wrong.
-
-4. **Pod logs**  
-   After deploy, run:
-   ```bash
-   kubectl logs deployment/the-cow-game-server -n default --tail=30
-   ```
-   Look for `game/ resolved: /app/game` (files found) or the WARN about missing game files. If you have `DEBUG=1`, you’ll also see `[static]` lines for each request (pathname, filePath, exists).
-
 ## Redis Integration
 
 The game uses Redis for items and stats management:

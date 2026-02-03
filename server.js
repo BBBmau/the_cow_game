@@ -85,23 +85,6 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
-        // Diagnostic for deployed static-file debugging (only when DEBUG=1)
-        if (pathname === '/debug-static' && req.method === 'GET' && DEBUG_STATIC) {
-            const gameDir = path.join(__dirname, 'game');
-            const checks = {
-                __dirname,
-                gameDir,
-                files: {
-                    'game/index.html': fs.existsSync(path.join(gameDir, 'index.html')),
-                    'game/cow.js': fs.existsSync(path.join(gameDir, 'cow.js')),
-                    'game/ui.js': fs.existsSync(path.join(gameDir, 'ui.js')),
-                }
-            };
-            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-            res.end(JSON.stringify(checks, null, 2));
-            return;
-        }
-
     // Helper function to parse user endpoint
     function parseUserEndpoint(url, host) {
         try {
