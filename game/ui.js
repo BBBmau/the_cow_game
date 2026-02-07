@@ -41,42 +41,6 @@ function checkLibrariesLoaded() {
 
 // --- Helper Functions ---
 
-async function saveColorToRedis(username, color) {
-    try {
-        const response = await fetch(`/user/${encodeURIComponent(username)}?color=${encodeURIComponent(color)}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        if (response.ok) {
-            console.log(`Color saved to Redis for ${username}: ${color}`);
-        } else {
-            console.error('Failed to save color to Redis');
-        }
-    } catch (error) {
-        console.error('Error saving color to Redis:', error);
-    }
-}
-
-async function loadColorFromRedis(username) {
-    try {
-        const response = await fetch(`/user/${encodeURIComponent(username)}`);
-        if (response.ok) {
-            const data = await response.json();
-            console.log(`Color loaded from Redis for ${username}: ${data.color || '#ffffff'}`);
-            return data.color || '#ffffff'; // Default white if no color
-        } else {
-            console.error('Failed to load color from Redis');
-            return '#ffffff'; // Default white
-        }
-    } catch (error) {
-        console.error('Error loading color from Redis:', error);
-        return '#ffffff'; // Default white
-    }
-}
-
 export function addChatMessage(message, type = 'player') {
     const { chatMessages } = getDOMElements();
     if (!chatMessages) {
@@ -328,7 +292,7 @@ export function initializeUI(callbacks, getState) {
         // Save current customization
         await saveCurrentCustomization();
         
-        // Save color to Redis
+        // Save color to Database
         const currentColor = cowColorPicker ? cowColorPicker.color.hexString : '#ffffff';
         
         // Try to get username from state, fallback to global username
@@ -342,10 +306,16 @@ export function initializeUI(callbacks, getState) {
         }
         
         if (username) {
-            await saveColorToRedis(username, currentColor);
-            console.log(`Color saved to Redis for ${username}: ${currentColor}`);
-            
-            // Now send the color update to the server
+            try {
+                const res = await fetch(`/user/${encodeURIComponent(username)}?color=${encodeURIComponent(currentColor)}`, { method: 'PUT' });
+                if (res.ok) {
+                    console.log(`Color saved for ${username}: ${currentColor}`);
+                } else {
+                    console.warn('Failed to save color:', res.status);
+                }
+            } catch (err) {
+                console.error('Error saving color:', err);
+            }
             if (typeof callbacks !== 'undefined' && callbacks.onCowColorChange) {
                 callbacks.onCowColorChange(currentColor);
             }
