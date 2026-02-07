@@ -117,7 +117,7 @@ const server = http.createServer(async (req, res) => {
                     ]);
                     
                     const isAvailable = !existingUser;
-                    const color = existingUser ? existingUser.color : null;
+                    const color = await userStore.getPlayerColor(username);
                     
                     console.log(`Username ${username} availability: ${isAvailable}`);
                     
@@ -128,7 +128,7 @@ const server = http.createServer(async (req, res) => {
                     res.end(JSON.stringify({
                         available: isAvailable,
                         exists: !isAvailable,
-                        color: color || null,
+                        color: color,
                         message: isAvailable ? 'Username available' : 'Username already taken'
                     }));
                 } catch (databaseError) {
