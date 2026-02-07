@@ -74,7 +74,7 @@ module.exports = {
         const now = Date.now();
         await p.query(
             `INSERT INTO ${TABLE} (username, username_lower, password_hash, created_at, last_login, color, color_updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [username, norm(username), passwordHash, now, now, color, now]
         );
         return {
