@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google-cloud/agones-sdk": "^1.50.0",
+    "pg": "^8.13.0",
     "redis": "^5.6.1",
     "ws": "^8.16.0"
   }

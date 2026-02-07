@@ -16,5 +16,24 @@ services:
       timeout: 10s
       retries: 3
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: cow_game_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cow_game
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cow_game"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
-  redis_data: 
+  redis_data:
+  postgres_data: 

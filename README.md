@@ -9,11 +9,12 @@ Screenshot taken on august 2nd, 2025
 
 ## An MMO game where you control a cow and do cow things - inspired by [fly.pieter.com](https://fly.pieter.com)
 
-To run locally simply do the following:
+To run locally, use the steps below.
 
 ## Prerequisites
-- Node.js (v16 or higher)
-- Docker (for Redis)
+
+- **Node.js** (v16 or higher)
+- **Docker** (for Redis and PostgreSQL), or install Redis and PostgreSQL locally
 
 ## Setup
 
@@ -22,30 +23,43 @@ To run locally simply do the following:
    npm install
    ```
 
-2. **Start Redis (using Docker):**
+2. **Start Redis and PostgreSQL (easiest with Docker):**
    ```bash
-   docker-compose up -d redis
+   docker-compose up -d
    ```
-   
-   Or if you have Redis installed locally, make sure it's running on port 6379.
+   This starts:
+   - **Redis** on port 6379 (game stats)
+   - **PostgreSQL** on port 5432 (user accounts, database `cow_game`, user `postgres`, password `postgres`)
 
-3. **Test Redis connection (optional):**
+   Or run each locally: Redis on 6379, PostgreSQL on 5432 with a database named `cow_game`.
+
+3. **Point the app at PostgreSQL (only if not using docker-compose defaults):**
+   ```bash
+   export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/cow_game"
+   ```
+   With the docker-compose above, these are the defaults; you can omit this.
+
+4. **Test Redis (optional):**
    ```bash
    node test-redis.js
    ```
 
-4. **Start the game server from the repo root** (the folder that contains both `server.js` and the `game/` folder):
+5. **Start the game server** from the repo root (folder that contains `server.js` and `game/`):
    ```bash
    cd /path/to/the_cow_game
    node server.js
    ```
-   
    You should see:
    ```
+   DB: Redis (game only). User store: PostgreSQL.
    Server running on port 6060
      Game:    http://localhost:6060/game
      Health:  http://localhost:6060/health
    ```
+
+6. **Open in browser:** [http://localhost:6060/game](http://localhost:6060/game)
+
+The server starts without waiting for Redis or PostgreSQL; `/` and `/health` respond immediately. Game stats need Redis; sign-up and user data need PostgreSQL.
 
 ## Debugging locally
 
@@ -82,12 +96,15 @@ Then open the game and watch the terminal. Each request for a static file will l
    ```
    Expect `200 OK` for each.
 
-4. **Match production (Docker):**
+4. **Match production (Docker):** With Redis and Postgres running (e.g. `docker-compose up -d`), run the app in a container:
    ```bash
    docker build -t cow-game .
-   docker run -p 6060:6060 -e REDIS_HOST=host.docker.internal cow-game
+   docker run -p 6060:6060 \
+     -e REDIS_HOST=host.docker.internal \
+     -e DATABASE_URL="postgresql://postgres:postgres@host.docker.internal:5432/cow_game" \
+     cow-game
    ```
-   Then test `http://localhost:6060/game` and `http://localhost:6060/game/cow.js` again. On Linux you may need `--add-host=host.docker.internal:host-gateway` for Redis.
+   On Linux you may need `--add-host=host.docker.internal:host-gateway` so the container can reach Redis and Postgres on the host.
 
 ## Redis Integration
 

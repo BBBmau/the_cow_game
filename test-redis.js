@@ -1,4 +1,4 @@
-const { client, redisHelpers, REDIS_KEYS } = require('./redis.js');
+const { client, redisHelpers, REDIS_KEYS } = require('./db/redis.js');
 
 // Test configuration
 const TEST_CONFIG = {

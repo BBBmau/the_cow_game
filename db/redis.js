@@ -6,20 +6,15 @@ const redisPort = parseInt(process.env.REDIS_PORT) || 6379;
 
 console.log(`Connecting to Redis at ${redisHost}:${redisPort}`);
 
-// Redis v4+ uses a different configuration format
 const client = redis.createClient({
-    // Add a ping interval to keep the connection alive
     pingInterval: 5000,
     socket: {
         host: redisHost,
         port: redisPort,
-        // Add a connection timeout
         connectTimeout: 5000
-        // By removing the custom reconnectStrategy, we use the robust default
     }
 });
 
-// Connection event handlers
 client.on('connect', () => {
     console.log('Redis client connected');
 });
@@ -36,47 +31,37 @@ client.on('end', () => {
     console.log('Redis client disconnected');
 });
 
-// Connect to Redis and wait for it to be ready
 async function connectRedis() {
     try {
         await client.connect();
         console.log('Redis connection established successfully');
     } catch (error) {
         console.error('Failed to connect to Redis:', error);
-        // Don't throw error - let the app continue without Redis
     }
 }
 
-// Initialize the connection
 connectRedis();
 
-// Redis keys for stats
+// Redis: game-related keys only (stats, global stats). User data lives in the database.
 const REDIS_KEYS = {
     PLAYER_STATS: 'cow_game:stats:',
     GLOBAL_STATS: 'cow_game:global_stats',
-    USER_ACCOUNTS: 'cow_game:users:',
-    PLAYER_COLORS: 'cow_game:colors:'
 };
 
-// Helper functions for stats
 const redisHelpers = {
-    // Check if Redis client is connected
     isConnected() {
         return client.isOpen && client.isReady;
     },
 
-    // Set a key with optional expiration
     async set(key, value, expireSeconds = null) {
         try {
             if (!this.isConnected()) {
                 console.warn('Redis not connected, skipping SET operation');
                 return false;
             }
-
             if (value === null || value === undefined) {
                 return true;
             }
-
             if (expireSeconds) {
                 await client.setEx(key, expireSeconds, JSON.stringify(value));
             } else {
@@ -89,14 +74,12 @@ const redisHelpers = {
         }
     },
 
-    // Get a value by key
     async get(key) {
         try {
             if (!this.isConnected()) {
                 console.warn('Redis not connected, skipping GET operation');
                 return null;
             }
-
             const value = await client.get(key);
             return value ? JSON.parse(value) : null;
         } catch (error) {
@@ -105,7 +88,6 @@ const redisHelpers = {
         }
     },
 
-    // Delete a key
     async del(key) {
         try {
             await client.del(key);
@@ -116,7 +98,6 @@ const redisHelpers = {
         }
     },
 
-    // Check if key exists
     async exists(key) {
         try {
             const result = await client.exists(key);
@@ -127,7 +108,6 @@ const redisHelpers = {
         }
     },
 
-    // Set expiration on existing key
     async expire(key, seconds) {
         try {
             await client.expire(key, seconds);
@@ -138,7 +118,6 @@ const redisHelpers = {
         }
     },
 
-    // Get all keys matching pattern
     async keys(pattern) {
         try {
             return await client.keys(pattern);
@@ -148,7 +127,6 @@ const redisHelpers = {
         }
     },
 
-    // STATS FUNCTIONS
     async getPlayerStats(playerId) {
         const key = REDIS_KEYS.PLAYER_STATS + playerId;
         return await this.get(key) || {
@@ -164,7 +142,7 @@ const redisHelpers = {
         const key = REDIS_KEYS.PLAYER_STATS + playerId;
         const currentStats = await this.get(key) || {};
         const updatedStats = { ...currentStats, ...updates };
-        await this.set(key, updatedStats, 86400 * 365); // 1 year
+        await this.set(key, updatedStats, 86400 * 365);
         return updatedStats;
     },
 
@@ -173,11 +151,11 @@ const redisHelpers = {
         const currentStats = await this.get(key) || {};
         const currentValue = currentStats[statName] || 0;
         const updatedStats = { ...currentStats, [statName]: currentValue + amount };
-        await this.set(key, updatedStats, 86400 * 365); // 1 year
+        await this.set(key, updatedStats, 86400 * 365);
         return updatedStats;
     },
 
-    // GLOBAL STATS FUNCTIONS
+    // GLOBAL STATS (Redis only — no DB; constantly pinged)
     async getGlobalStats() {
         return await this.get(REDIS_KEYS.GLOBAL_STATS) || {
             totalPlayers: 0,
@@ -190,7 +168,7 @@ const redisHelpers = {
     async updateGlobalStats(updates) {
         const currentStats = await this.get(REDIS_KEYS.GLOBAL_STATS) || {};
         const updatedStats = { ...currentStats, ...updates };
-        await this.set(REDIS_KEYS.GLOBAL_STATS, updatedStats, 0); // No expiration
+        await this.set(REDIS_KEYS.GLOBAL_STATS, updatedStats, 0);
         return updatedStats;
     },
 
@@ -198,47 +176,15 @@ const redisHelpers = {
         const currentStats = await this.get(REDIS_KEYS.GLOBAL_STATS) || {};
         const currentValue = currentStats[statName] || 0;
         let newValue = currentValue + amount;
-        
-        // Prevent negative values for certain stats
         if (statName === 'totalPlayers' && newValue < 0) {
             newValue = 0;
         }
-        
         const updatedStats = { ...currentStats, [statName]: newValue };
-        await this.set(REDIS_KEYS.GLOBAL_STATS, updatedStats, 0); // No expiration
+        await this.set(REDIS_KEYS.GLOBAL_STATS, updatedStats, 0);
         return updatedStats;
     },
 
-    // USER AUTHENTICATION FUNCTIONS
-    async createUser(username, passwordHash) {
-        const key = REDIS_KEYS.USER_ACCOUNTS + username.toLowerCase();
-        const userData = {
-            username: username,
-            passwordHash: passwordHash,
-            createdAt: Date.now(),
-            lastLogin: Date.now()
-        };
-        await this.set(key, userData, 0); // No expiration
-        return userData;
-    },
-
-    async getUser(username) {
-        const key = REDIS_KEYS.USER_ACCOUNTS + username.toLowerCase();
-        return await this.get(key);
-    },
-
-    async updateUserLogin(username) {
-        const key = REDIS_KEYS.USER_ACCOUNTS + username.toLowerCase();
-        const userData = await this.get(key);
-        if (userData) {
-            userData.lastLogin = Date.now();
-            await this.set(key, userData, 0);
-        }
-        return userData;
-    },
-
     async getUserStats(username) {
-        // Use username as the key for stats instead of random clientId
         const key = REDIS_KEYS.PLAYER_STATS + username.toLowerCase();
         const stats = await this.get(key) || {
             level: 1,
@@ -247,16 +193,11 @@ const redisHelpers = {
             timePlayed: 0,
             hayEaten: 0
         };
-        
-        // Always recalculate level based on experience to ensure consistency
         const calculatedLevel = Math.floor(stats.experience / 100) + 1;
         if (stats.level !== calculatedLevel) {
-            console.log(`Level mismatch for ${username}: stored=${stats.level}, calculated=${calculatedLevel}, fixing...`);
             stats.level = calculatedLevel;
-            // Update the stored stats with correct level
             await this.set(key, stats, 86400 * 365);
         }
-        
         return stats;
     },
 
@@ -264,7 +205,7 @@ const redisHelpers = {
         const key = REDIS_KEYS.PLAYER_STATS + username.toLowerCase();
         const currentStats = await this.get(key) || {};
         const updatedStats = { ...currentStats, ...updates };
-        await this.set(key, updatedStats, 86400 * 365); // 1 year
+        await this.set(key, updatedStats, 86400 * 365);
         return updatedStats;
     },
 
@@ -273,37 +214,12 @@ const redisHelpers = {
         const currentStats = await this.get(key) || {};
         const currentValue = currentStats[statName] || 0;
         const updatedStats = { ...currentStats, [statName]: currentValue + amount };
-        
-        // Always recalculate level when experience changes
         if (statName === 'experience') {
-            const newLevel = Math.floor(updatedStats.experience / 100) + 1;
-            updatedStats.level = newLevel;
-            console.log(`Experience updated for ${username}: ${updatedStats.experience} XP, Level: ${newLevel}`);
+            updatedStats.level = Math.floor(updatedStats.experience / 100) + 1;
         }
-        
-        await this.set(key, updatedStats, 86400 * 365); // 1 year
+        await this.set(key, updatedStats, 86400 * 365);
         return updatedStats;
     },
-
-    // COLOR STORAGE FUNCTIONS
-    async savePlayerColor(username, color) {
-        const key = REDIS_KEYS.PLAYER_COLORS + username.toLowerCase();
-        const colorData = {
-            color: color,
-            updatedAt: Date.now()
-        };
-        await this.set(key, colorData, 86400 * 365); // 1 year
-        return colorData;
-    },
-
-    async getPlayerColor(username) {
-        const key = REDIS_KEYS.PLAYER_COLORS + username.toLowerCase();
-        const colorData = await this.get(key);
-        if (colorData) {
-            return colorData.color;
-        }
-        return '#ffffff'; // Default white color
-    }
 };
 
 module.exports = {
