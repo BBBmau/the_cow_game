@@ -1,4 +1,4 @@
-# the_cow_game - [playthecowgame.com](https://www.playthecowgame.com)
+# the_cow_game - [playthecowgame.com](https://www.playthecowgame.com) (offline - local development for now)
 
 [![Latest Commit is LIVE](https://github.com/BBBmau/the_cow_game/actions/workflows/deploy.yaml/badge.svg?branch=main&event=push)](https://github.com/BBBmau/the_cow_game/actions/workflows/deploy.yaml)
 
