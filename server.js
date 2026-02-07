@@ -10,28 +10,9 @@ const path = require('path');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEBUG_STATIC = process.env.DEBUG === '1' || process.env.DEBUG === 'static';
 
-// Import Redis connection for stats
-const { client, redisHelpers, REDIS_KEYS } = require('./redis.js');
+// Redis: stats, global stats (no DB — constantly pinged), connection. userStore: /user endpoint only.
+const { client, redisHelpers, userStore } = require('./db/index.js');
 const crypto = require('crypto');
-
-// Track Redis connection status
-let isRedisConnected = false;
-
-// Monitor Redis connection status
-client.on('ready', () => {
-    isRedisConnected = true;
-    console.log('Redis connection established');
-});
-
-client.on('error', (err) => {
-    isRedisConnected = false;
-    console.error('Redis connection error:', err);
-});
-
-client.on('end', () => {
-    isRedisConnected = false;
-    console.log('Redis connection ended');
-});
 
 // Create HTTP server
 const server = http.createServer(async (req, res) => {
@@ -124,19 +105,19 @@ const server = http.createServer(async (req, res) => {
             try {
                 console.log(`Checking username availability: ${username}`);
                 
-                // Add timeout for Redis operations
+                // Add timeout for Database operations
                 const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('Redis timeout')), 5000);
+                    setTimeout(() => reject(new Error('Database timeout')), 5000);
                 });
                 
                 try {
                     const existingUser = await Promise.race([
-                        redisHelpers.getUser(username),
+                        userStore.getUser(username),
                         timeoutPromise
                     ]);
                     
                     const isAvailable = !existingUser;
-                    const color = existingUser ? await redisHelpers.getPlayerColor(username) : null;
+                    const color = existingUser ? existingUser.color : null;
                     
                     console.log(`Username ${username} availability: ${isAvailable}`);
                     
@@ -150,9 +131,9 @@ const server = http.createServer(async (req, res) => {
                         color: color || null,
                         message: isAvailable ? 'Username available' : 'Username already taken'
                     }));
-                } catch (redisError) {
-                    console.error('Redis error during user lookup:', redisError);
-                    // Fallback: assume username is available if Redis is unavailable
+                } catch (databaseError) {
+                    console.error('Database error during user lookup:', databaseError);
+                    // Fallback: assume username is available if Database is unavailable
                     res.writeHead(200, { 
                         'Content-Type': 'application/json',
                         'Access-Control-Allow-Origin': '*'
@@ -161,7 +142,7 @@ const server = http.createServer(async (req, res) => {
                         available: true,
                         exists: false,
                         color: null,
-                        message: 'Username available (Redis unavailable)'
+                        message: 'Username available (Database unavailable)'
                     }));
                 }
             } catch (error) {
@@ -198,7 +179,7 @@ const server = http.createServer(async (req, res) => {
                     // const otherParam = query.get('other');
                     
                     if (color) {
-                        await redisHelpers.savePlayerColor(username, color);
+                        await userStore.savePlayerColor(username, color);
                         console.log(`Color saved for ${username}: ${color}`);
                     }
                     
@@ -348,20 +329,20 @@ function hashPassword(password) {
 
 async function authenticateUser(username, password) {
     try {
-        const user = await redisHelpers.getUser(username);
+        const user = await userStore.getUser(username);
         const passwordHash = hashPassword(password);
         
         if (user) {
             // Existing user - check password
             if (user.passwordHash === passwordHash) {
-                await redisHelpers.updateUserLogin(username);
+                await userStore.updateUserLogin(username);
                 return { success: true, message: 'Login successful', user: user };
             } else {
                 return { success: false, message: 'Invalid password' };
             }
         } else {
             // New user - create account
-            const newUser = await redisHelpers.createUser(username, passwordHash);
+            const newUser = await userStore.createUser(username, passwordHash);
             return { success: true, message: 'Account created successfully', user: newUser, isNewUser: true };
         }
     } catch (error) {
@@ -439,26 +420,25 @@ const hayManager = {
 // Initialize Redis connection
 async function initializeRedis() {
     try {
-        // Wait for Redis to be ready (connection handled in redis.js)
-        // Check if Redis is connected, if not wait a bit
+        // Wait for Redis to be ready (global stats live in Redis only — no DB, constantly pinged)
         let retries = 0;
-        while (!client.isOpen && retries < 10) {
+        while (!redisHelpers.isConnected() && retries < 10) {
             console.log('Waiting for Redis connection...');
             await new Promise(resolve => setTimeout(resolve, 1000));
             retries++;
         }
         
-        if (!client.isOpen) {
+        if (!redisHelpers.isConnected()) {
             console.error('Redis connection timeout after 10 seconds');
             return;
         }
         
         console.log('Redis connected successfully for stats');
         
-        // Initialize global stats if they don't exist
+        // Initialize global stats if they don't exist (Redis only)
         const globalStats = await redisHelpers.getGlobalStats();
         if (!globalStats.serverStartTime) {
-            await redisHelpers.updateGlobalStats({ 
+            await redisHelpers.updateGlobalStats({
                 serverStartTime: Date.now(),
                 totalPlayers: 0,
                 totalHayEaten: 0,
@@ -641,7 +621,7 @@ wss.on('connection', async (ws) => {
                         console.log(`Processing set_username for: ${data.username}, isGuest: ${client.isGuest}`);
                         
                         // Check if this username already exists in Redis
-                        const existingUser = await redisHelpers.getUser(data.username);
+                        const existingUser = await userStore.getUser(data.username);
                         console.log(`Existing user check for ${data.username}:`, existingUser ? 'EXISTS' : 'NOT FOUND');
                         
                         // For guest users, check if username is already registered
@@ -658,7 +638,7 @@ wss.on('connection', async (ws) => {
                             
                             // This is a new user registration - create the user in Redis
                             console.log(`Creating new guest user: ${data.username}`);
-                            await redisHelpers.createUser(data.username, ''); // Empty password for guest
+                            await userStore.createUser(data.username, '', data.color); // Empty password for guest
                             client.isNewUser = true;
                             console.log(`Set isNewUser = true for guest: ${data.username}`);
                         } else {
