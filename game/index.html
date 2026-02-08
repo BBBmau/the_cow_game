@@ -579,7 +579,8 @@
             const isLocalDev = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '0.0.0.0' || window.location.hostname.endsWith('.local')) || (new URLSearchParams(window.location.search).get('dev') === '1');
             const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
             const wsHost = window.location.host;
-            const wsUrl = `${wsProtocol}://${wsHost}`;
+            // Use /game path so ingress routes WebSocket to game backend (dev and prod 1:1)
+            const wsUrl = `${wsProtocol}://${wsHost}/game`;
 
             console.log('Connecting to WebSocket:', wsUrl);
             window.ws = new WebSocket(wsUrl);
