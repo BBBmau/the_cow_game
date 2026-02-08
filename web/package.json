@@ -1,0 +1,13 @@
+{
+  "name": "cow-game-web",
+  "version": "1.0.0",
+  "description": "Web server: welcome, login, leaderboard, /user API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "DEBUG=1 node server.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}

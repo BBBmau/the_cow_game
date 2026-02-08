@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaderboard – The Cow Game</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="page leaderboard">
+    <header>
+      <h1>🐄 The Cow Game</h1>
+      <nav class="back"><a href="/">← Home</a> · <a href="/game">Play</a></nav>
+    </header>
+    <main>
+      <h2>Leaderboard</h2>
+      <p id="leaderboard-status" class="status">Loading…</p>
+      <table id="leaderboard-table" class="table" hidden>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Player</th>
+            <th>Level</th>
+            <th>Experience</th>
+            <th>Hay eaten</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="leaderboard-empty" class="empty" hidden>No entries yet. <a href="/game">Be the first!</a></p>
+    </main>
+  </div>
+  <script src="/web/leaderboard.js"></script>
+</body>
+</html>

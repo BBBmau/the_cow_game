@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log in / Sign up – The Cow Game</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="page auth">
+    <header>
+      <h1>🐄 The Cow Game</h1>
+      <nav class="back"><a href="/">← Home</a></nav>
+    </header>
+    <main>
+      <div class="tabs">
+        <button type="button" class="tab active" data-tab="login">Log in</button>
+        <button type="button" class="tab" data-tab="signup">Sign up</button>
+      </div>
+
+      <form id="login-form" class="panel active" data-panel="login">
+        <h2>Log in</h2>
+        <label>Username <input type="text" name="username" required autocomplete="username"></label>
+        <label>Password <input type="password" name="password" required autocomplete="current-password"></label>
+        <p id="login-message" class="message"></p>
+        <button type="submit" class="btn btn-primary">Log in</button>
+        <p class="hint">Then go to <a href="/game">Play</a> and enter this username.</p>
+      </form>
+
+      <form id="signup-form" class="panel" data-panel="signup">
+        <h2>Sign up</h2>
+        <label>Username <input type="text" name="username" required autocomplete="username"></label>
+        <label>Password <input type="password" name="password" required autocomplete="new-password"></label>
+        <label>Confirm password <input type="password" name="confirm" required autocomplete="new-password"></label>
+        <p id="signup-message" class="message"></p>
+        <button type="submit" class="btn btn-primary">Create account</button>
+      </form>
+    </main>
+  </div>
+  <script src="/web/auth.js"></script>
+</body>
+</html>
