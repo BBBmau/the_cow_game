@@ -1,0 +1,8 @@
+FROM node:lts-alpine
+WORKDIR /app
+COPY web/package.json ./package.json
+RUN npm install
+COPY db ./db
+COPY web ./web
+EXPOSE 6060
+CMD ["node", "web/server.js"]

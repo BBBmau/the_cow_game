@@ -1,8 +1,9 @@
-    FROM node:lts-alpine
-    WORKDIR /app
-    COPY package.json package-lock.json ./
-    RUN npm install
-    COPY . .
-    RUN test -f /app/game/index.html && test -f /app/game/cow.js && test -f /app/game/ui.js || (echo "ERROR: game/ files missing - check build context" && exit 1)
-    EXPOSE 6060
-    CMD ["node", "server.js"]
+# Default: game server. Use -f Dockerfile.web to build web image.
+FROM node:lts-alpine
+WORKDIR /app
+COPY game/package.json ./package.json
+RUN npm install
+COPY db ./db
+COPY game ./game
+EXPOSE 6060
+CMD ["node", "game/gameServer.js"]

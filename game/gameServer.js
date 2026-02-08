@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEBUG_STATIC = process.env.DEBUG === '1' || process.env.DEBUG === 'static';
 
 // Redis: stats, global stats (no DB — constantly pinged), connection. userStore: /user endpoint only.
-const { client, redisHelpers, userStore } = require('./db/index.js');
+const { client, redisHelpers, userStore } = require('../db/index.js');
 const crypto = require('crypto');
 
 // Create HTTP server
@@ -216,8 +216,8 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
-        // Serve /game and /game/* from the game/ directory (relative to server.js, not cwd)
-        const gameDir = path.join(__dirname, 'game');
+        // Serve /game and /game/* from this directory (gameServer.js lives in game/)
+        const gameDir = __dirname;
         let filePath;
         if (pathname === '/game' || pathname === '/game/') {
             filePath = path.join(gameDir, 'index.html');
@@ -980,18 +980,18 @@ async function startServer() {
     
         
         server.listen(PORT, () => {
-            const gameDir = path.join(__dirname, 'game');
+            const gameDir = __dirname;
             const gameIndexExists = fs.existsSync(path.join(gameDir, 'index.html'));
             const gameCowExists = fs.existsSync(path.join(gameDir, 'cow.js'));
             console.log(`Server running on port ${PORT}`);
             console.log(`  Game:    http://localhost:${PORT}/game`);
             console.log(`  Health:  http://localhost:${PORT}/health`);
             if (!gameIndexExists || !gameCowExists) {
-                console.warn(`  WARN: game/ files missing (index.html: ${gameIndexExists}, cow.js: ${gameCowExists})`);
+                console.warn(`  WARN: game files missing (index.html: ${gameIndexExists}, cow.js: ${gameCowExists})`);
                 console.warn(`  __dirname: ${__dirname}`);
-                console.warn(`  Run the server from the repo root (directory containing server.js and game/)`);
+                console.warn(`  Run from repo root: node game/gameServer.js`);
             } else {
-                console.log(`  game/ resolved: ${gameDir}`);
+                console.log(`  game dir: ${gameDir}`);
             }
         });
         

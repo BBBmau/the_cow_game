@@ -122,4 +122,9 @@ module.exports = {
         );
         return { color, updatedAt: now };
     },
+
+    /** Leaderboard: returns [] until you add a stats/leaderboard table and populate it (e.g. from game server). */
+    async getLeaderboard(limit = 100) {
+        return [];
+    },
 };

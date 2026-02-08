@@ -1,7 +1,12 @@
-// this script is used to update the kind cluster with the latest image. be sure to setup the local dev found in the-cow-game-infra/local
+# Update kind cluster with latest images. Run from repo root. Requires kind and kubectl.
+# Setup: see the-cow-game-infra/local
 
 docker build -t mmo-server:local .
 kind load docker-image mmo-server:local
 kubectl rollout restart deployment the-cow-game-server
-sleep 3
-kubectl port-forward deployment/the-cow-game-server 6060:80
+
+docker build -f Dockerfile.web -t mmo-web:local .
+kind load docker-image mmo-web:local
+kubectl rollout restart deployment the-cow-game-web
+
+kubectl port-forward --namespace=ingress-nginx service/ingress-nginx-controller 7777:80

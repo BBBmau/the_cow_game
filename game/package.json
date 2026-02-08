@@ -1,0 +1,14 @@
+{
+  "name": "cow-game-server",
+  "version": "1.0.0",
+  "description": "Game server: WebSocket, /game static, Postgres stats",
+  "main": "gameServer.js",
+  "scripts": {
+    "start": "node gameServer.js",
+    "dev": "DEBUG=1 node gameServer.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0",
+    "ws": "^8.16.0"
+  }
+}
