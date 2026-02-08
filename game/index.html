@@ -576,10 +576,11 @@
             console.log('Initializing game...');
             
             // WebSocket connection with timeout
+            const isLocalDev = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '0.0.0.0' || window.location.hostname.endsWith('.local')) || (new URLSearchParams(window.location.search).get('dev') === '1');
             const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
             const wsHost = window.location.host;
             const wsUrl = `${wsProtocol}://${wsHost}`;
-            
+
             console.log('Connecting to WebSocket:', wsUrl);
             window.ws = new WebSocket(wsUrl);
             let clientId = null;
@@ -589,10 +590,11 @@
                 if (window.ws.readyState === WebSocket.CONNECTING) {
                     console.error('WebSocket connection timeout');
                     window.ws.close();
-                    alert('Connection timeout. Please try again.');
-                    // Reset to login screen
-                    gameStarted = false;
-                    document.getElementById('loginScreen').classList.remove('hidden');
+                    if (!isLocalDev) {
+                        alert('Connection timeout. Please try again.');
+                        gameStarted = false;
+                        document.getElementById('loginScreen').classList.remove('hidden');
+                    }
                 }
             }, 10000); // 10 second timeout
 
@@ -1108,14 +1110,15 @@
                 }
             };
 
-            // WebSocket error handler
+            // WebSocket error handler (skip alert/reset on localhost so local dev isn't interrupted)
             window.ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
                 clearTimeout(connectionTimeout);
-                alert('Connection error. Please check your internet connection and try again.');
-                // Reset to login screen
-                gameStarted = false;
-                document.getElementById('loginScreen').classList.remove('hidden');
+                if (!isLocalDev) {
+                    alert('Connection error. Please check your internet connection and try again.');
+                    gameStarted = false;
+                    document.getElementById('loginScreen').classList.remove('hidden');
+                }
             };
 
             // WebSocket close handler
@@ -1123,10 +1126,12 @@
                 console.log('WebSocket connection closed:', event.code, event.reason);
                 clearTimeout(connectionTimeout);
                 
-                if (event.code === 1008) {
-                    alert('Server is at capacity. Please try again later.');
-                } else if (event.code !== 1000) {
-                    alert('Connection lost. Please refresh the page.');
+                if (!isLocalDev) {
+                    if (event.code === 1008) {
+                        alert('Server is at capacity. Please try again later.');
+                    } else if (event.code !== 1000) {
+                        alert('Connection lost. Please refresh the page.');
+                    }
                 }
                 
                 // Reset to login screen if game was started
