@@ -1,0 +1,8 @@
+# Sync leaderboard: Redis → Postgres (one-shot, for K8s CronJob).
+# Build from repo root: docker build -f Dockerfile.sync -t cow-game-sync .
+FROM node:lts-alpine
+WORKDIR /app
+RUN npm init -y && npm install pg redis
+COPY db ./db
+COPY scripts ./scripts
+CMD ["node", "scripts/sync-leaderboard-to-postgres.js"]

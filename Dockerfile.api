@@ -1,0 +1,14 @@
+# Build Go API from api/ (run from repo root: docker build -f Dockerfile.api -t cow-game-api .)
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY api/go.mod api/go.sum ./
+RUN go mod download
+COPY api/*.go ./
+RUN CGO_ENABLED=0 go build -o api .
+
+FROM alpine:3.19
+RUN apk --no-cache add ca-certificates
+WORKDIR /app
+COPY --from=builder /app/api .
+EXPOSE 8080
+ENTRYPOINT ["./api"]
